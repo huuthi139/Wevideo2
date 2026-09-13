@@ -1,0 +1,12 @@
+{
+  "_note": "Cấu hình MCP mẫu cho agent (Hermes / Claude Desktop / bất kỳ MCP client). Sửa <HOME> thành đường dẫn thật (vd /Users/ban). Nếu cài bằng installer thì app ở <HOME>/WeVideo-App. Nhớ chạy 'bash run.sh' trước (MCP server gọi vào web app :8080).",
+  "mcpServers": {
+    "wevideo": {
+      "command": "<HOME>/WeVideo-App/.venv/bin/python",
+      "args": ["<HOME>/WeVideo-App/mcp_server.py"],
+      "env": {
+        "WEVIDEO_APP_URL": "http://127.0.0.1:8080"
+      }
+    }
+  }
+}

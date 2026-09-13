@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WeVideo — Kịch bản → Video</title>
+<style>
+  :root { --bg:#0f1912; --card:#16241b; --ink:#e8f2ea; --mut:#8fae9b; --acc:#c8ff6a; --acc2:#7bd88f; --line:#26382c; --err:#ff6b6b; }
+  * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:22px 18px 60px; }
+  h1 { font-size:22px; margin:0 0 2px; } .sub { color:var(--mut); font-size:13px; margin-bottom:18px; }
+  .status { display:inline-flex; align-items:center; gap:7px; font-size:13px; padding:5px 11px;
+    border:1px solid var(--line); border-radius:20px; margin-bottom:16px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:#666; }
+  .dot.ok { background:var(--acc2); box-shadow:0 0 8px var(--acc2); } .dot.bad { background:var(--err); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  label { display:block; font-size:12px; color:var(--mut); margin:0 0 5px; text-transform:uppercase; letter-spacing:.04em; }
+  textarea { width:100%; min-height:180px; resize:vertical; background:#0c1610; color:var(--ink);
+    border:1px solid var(--line); border-radius:10px; padding:12px; font:14px/1.55 inherit; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-top:14px; }
+  select, input[type=number] { width:100%; background:#0c1610; color:var(--ink); border:1px solid var(--line);
+    border-radius:9px; padding:9px 10px; font:14px inherit; }
+  .row { display:flex; align-items:center; gap:12px; margin-top:16px; }
+  button { background:var(--acc); color:#12210a; border:0; border-radius:11px; padding:13px 22px;
+    font:700 15px inherit; cursor:pointer; } button:disabled { opacity:.5; cursor:default; }
+  .bar { height:9px; background:#0c1610; border:1px solid var(--line); border-radius:6px; overflow:hidden; margin-top:6px; }
+  .bar > i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--acc2),var(--acc)); transition:width .4s; }
+  .prog { font-size:13px; color:var(--mut); margin-top:8px; min-height:18px; }
+  video { width:100%; max-width:340px; border-radius:12px; display:block; margin:6px auto; background:#000; }
+  .hint { font-size:12px; color:var(--mut); margin-top:8px; }
+  a.dl { color:var(--acc); font-weight:600; text-decoration:none; }
+  .err { color:var(--err); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎬 WeVideo — Kịch bản → Video</h1>
+  <div class="sub">Dán kịch bản tiếng Việt → tự tạo video người que 9:16 (giọng + phụ đề + gen Veo qua Google Flow).</div>
+  <div class="status"><span class="dot" id="dot"></span><span id="stt">Đang kiểm tra kết nối…</span></div>
+
+  <div class="card">
+    <label>Kịch bản (mỗi dòng = 1 câu đọc; hoặc dùng khối <code>doc:/hinh:/phude:</code>)</label>
+    <textarea id="script" placeholder="Hàng hoá phái sinh, nghe thì phức tạp, nhưng bản chất rất đơn giản.
+Bạn không cần mua vàng hay dầu thật, chỉ cần dự đoán giá sẽ lên hay xuống.
+Đoán đúng chiều là có lãi, giá lên hay xuống đều là cơ hội."></textarea>
+    <div class="hint" id="llmHint"></div>
+
+    <div class="grid">
+      <div><label>Phong cách</label><select id="style"><option value="phan">Phấn / bảng xanh</option><option value="trang">Mực đen / nền trắng</option></select></div>
+      <div><label>Giọng</label><select id="voice"><option value="vi-VN-NamMinhNeural">Nam Minh (nam)</option><option value="vi-VN-HoaiMyNeural">Hoài My (nữ)</option></select></div>
+      <div><label>Chuyển cảnh</label><select id="transition"><option value="hardcut">Hard cut (nhanh)</option><option value="dissolve">Dissolve</option><option value="fade">Fade</option><option value="slideleft">Slide</option><option value="circleopen">Circle</option></select></div>
+      <div><label>Zoom</label><select id="zoom"><option value="auto">Tự động</option><option value="none">Không</option><option value="in">Zoom in</option></select></div>
+      <div><label>Độ dài clip (giây)</label><select id="duration"><option>4</option><option>6</option><option>8</option></select></div>
+      <div><label>Tăng tốc</label><select id="speed"><option value="1.15">1.15×</option><option value="1.0">1.0×</option><option value="1.1">1.1×</option></select></div>
+    </div>
+    <div class="row"><button id="go">Tạo video</button><span class="prog" id="note"></span></div>
+  </div>
+
+  <div class="card" id="progCard" hidden>
+    <div class="bar"><i id="fill"></i></div>
+    <div class="prog" id="prog"></div>
+    <div id="result"></div>
+  </div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+let poll = null;
+
+async function checkHealth() {
+  try {
+    const h = await (await fetch('/api/health')).json();
+    const dot = $('#dot'), stt = $('#stt');
+    if (h.extension_connected) { dot.className = 'dot ok'; stt.textContent = 'flow-agent + extension: SẴN SÀNG'; }
+    else if (h.flow_agent) { dot.className = 'dot bad'; stt.innerHTML = 'flow-agent chạy nhưng <b>extension chưa nối / chưa mở tab Flow</b>'; }
+    else { dot.className = 'dot bad'; stt.innerHTML = '<b>flow-agent chưa chạy</b> — chạy <code>flow serve</code> + mở tab flow.google.com (đã login)'; }
+  } catch (e) { $('#dot').className='dot bad'; $('#stt').textContent='Không gọi được server'; }
+}
+async function loadCfg(){ try{ const c=await (await fetch('/api/config')).json();
+  $('#style').value=c.style; $('#voice').value=c.voice; $('#transition').value=c.transition;
+  $('#zoom').value=c.zoom; $('#duration').value=String(c.duration); $('#speed').value=String(c.speed);
+  $('#llmHint').textContent = c.llm ? 'LLM enrich: BẬT — tự sinh mô tả hình + phụ đề từ câu tiếng Việt.'
+    : 'LLM enrich: TẮT — hình sẽ chung chung. Muốn hình sát nội dung: thêm khối hinh:<mô tả tiếng Anh> mỗi cảnh, hoặc bật LLM trong config.env.';
+}catch(e){} }
+
+$('#go').onclick = async () => {
+  const script = $('#script').value.trim();
+  if (!script) { $('#note').textContent = 'Nhập kịch bản đã.'; return; }
+  $('#go').disabled = true; $('#note').textContent = '';
+  $('#progCard').hidden = false; $('#result').innerHTML = ''; $('#fill').style.width = '0';
+  const body = { script, style:$('#style').value, voice:$('#voice').value,
+    transition:$('#transition').value, zoom:$('#zoom').value,
+    duration:Number($('#duration').value), speed:Number($('#speed').value) };
+  let r;
+  try { r = await (await fetch('/api/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json(); }
+  catch(e){ $('#prog').innerHTML='<span class="err">Lỗi gọi server</span>'; $('#go').disabled=false; return; }
+  if (r.error) { $('#prog').innerHTML='<span class="err">'+r.error+'</span>'; $('#go').disabled=false; return; }
+  const id = r.job_id;
+  poll = setInterval(async () => {
+    let p; try { p = await (await fetch('/api/progress/'+id)).json(); } catch(e){ return; }
+    $('#fill').style.width = (p.pct||0) + '%';
+    $('#prog').textContent = (p.pct||0) + '% · ' + (p.msg||'');
+    if (p.done) {
+      clearInterval(poll); $('#go').disabled = false;
+      if (p.ok) {
+        $('#prog').textContent = '✅ Xong · ' + (p.duration||'?') + 's · prompt:' + (p.source||'');
+        $('#result').innerHTML = '<video controls autoplay muted src="'+p.video_url+'"></video>'
+          + '<div style="text-align:center"><a class="dl" href="'+p.video_url+'" download>⬇ Tải video</a></div>';
+      } else {
+        $('#prog').innerHTML = '<span class="err">❌ ' + (p.error||'lỗi') + '</span>';
+      }
+    }
+  }, 1500);
+};
+
+checkHealth(); loadCfg(); setInterval(checkHealth, 8000);
+</script>
+</body>
+</html>

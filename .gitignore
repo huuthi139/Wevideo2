@@ -1,0 +1,9 @@
+.venv/
+engine/
+projects/
+dist/
+__pycache__/
+*.pyc
+*.log
+*.bak-*
+engine.log
