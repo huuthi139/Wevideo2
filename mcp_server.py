@@ -81,7 +81,8 @@ def list_options() -> dict:
         "defaults": cfg,
         "script_note": ("Mỗi dòng = 1 câu ĐỌC (tiếng Việt thuần). Kiểm soát hình: khối mỗi cảnh cách "
                         "nhau 1 dòng trống, gồm 'doc:' (lời đọc) 'hinh:' (mô tả hình tiếng Anh cho Veo) "
-                        "'phude:' (phụ đề, *từ khoá* → IN HOA to)."),
+                        "'phude:' (phụ đề, *từ khoá* → IN HOA to). Tuỳ chọn 'broll:' (mô tả hình tiếng "
+                        "Anh) → app gen thêm 1 clip Veo chèn cutaway giữa cảnh đó, giọng chạy tiếp."),
     }
 
 

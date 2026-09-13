@@ -49,6 +49,7 @@ Mở trình duyệt, **dán kịch bản**, chọn phong cách/giọng/chuyển 
   phude: Phái sinh · *rất đơn giản*
   ```
   `doc` = lời đọc · `hinh` = mô tả hình tiếng Anh cho Veo · `phude` = phụ đề (`*từ khoá*` → IN HOA to).
+- **B-roll cutaway** (tuỳ chọn): thêm dòng `broll: <mô tả hình tiếng Anh>` vào khối cảnh → app gen thêm 1 clip Veo, chèn đè ~1-1.5s giữa cảnh đó (giọng chạy tiếp, không lệch). B-roll lỗi thì tự bỏ qua.
 - **Bật LLM** (tuỳ chọn) trong `config.env` để tự sinh `hinh`/`phude` tiếng Anh từ câu tiếng Việt — hình sát nội dung hơn mà không phải viết tay. Thiếu LLM → app vẫn ra video, hình chung chung hơn.
 
 ## Cấu hình — `config.env`

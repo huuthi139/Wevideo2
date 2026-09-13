@@ -120,12 +120,15 @@ def run(opts: dict, progress=lambda p, m: None) -> dict:
     starts = [x["start"] for x in g]; bounds = starts[1:] + [vend]
     durs = [round(bounds[i] - starts[i], 3) for i in range(n)]
 
-    # 3) gen clip Veo từng cảnh (flow-agent)
+    # 3) gen clip Veo từng cảnh + B-roll cutaway (cảnh nào có broll thì gen thêm 1 clip phụ)
     flow = opts.get("flow_agent_url", "http://127.0.0.1:8001")
     clips = []
+    broll_clips = {}                       # i (0-based) -> path clip B-roll
+    n_broll = sum(1 for sc in scenes if sc.get("broll"))
+    total = n + n_broll                    # tổng clip để chia % (chính + B-roll)
+    done = 0
     for i, sc in enumerate(scenes):
-        pct = 15 + int(58 * i / max(1, n))
-        progress(pct, f"Gen cảnh {i+1}/{n} (Veo)…")
+        progress(15 + int(58 * done / max(1, total)), f"Gen cảnh {i+1}/{n} (Veo)…")
         p = prompts.build_video_prompt(style, sc["hinh"])
         out = os.path.join(job, f"clip{i+1}.mp4")
         ok, msg = _gen_clip(flow, p, dur_each, out)
@@ -133,11 +136,29 @@ def run(opts: dict, progress=lambda p, m: None) -> dict:
             ok, msg = _gen_clip(flow, p, dur_each, out)  # retry 1 lần
         if not ok:
             return {"ok": False, "error": f"Cảnh {i+1} gen hỏng: {msg}", "scenes": scenes}
-        clips.append(out)
+        clips.append(out); done += 1
+        if sc.get("broll"):                # B-roll: gen clip phụ; LỖI thì bỏ qua (không hỏng video)
+            progress(15 + int(58 * done / max(1, total)), f"Gen B-roll cảnh {i+1} (Veo)…")
+            bp = prompts.build_video_prompt(style, sc["broll"])
+            bout = os.path.join(job, f"broll{i+1}.mp4")
+            bok, _ = _gen_clip(flow, bp, dur_each, bout)
+            if not bok:
+                bok, _ = _gen_clip(flow, bp, dur_each, bout)
+            if bok:
+                broll_clips[i] = bout; done += 1
 
     # 4) project.json cho build_video2
     progress(78, "Dựng phụ đề + ráp video…")
     zoom_opt = opts.get("zoom", "auto")
+    # mốc bắt đầu mỗi cảnh = cộng dồn durs (khớp scene_start của build_video2, cả hardcut & xfade)
+    scene_start = [0.0]
+    for i in range(1, n):
+        scene_start.append(round(scene_start[-1] + durs[i - 1], 3))
+    broll_list = []
+    for i, bclip in sorted(broll_clips.items()):
+        bdur = round(min(1.5, durs[i] * 0.5), 2)                 # cutaway ngắn, ≤ nửa cảnh
+        at = round(scene_start[i] + max(0.3, durs[i] * 0.25), 2)  # chèn ~1/4 sau khi vào cảnh
+        broll_list.append({"clip": bclip, "at": at, "dur": bdur, "zoom": "in"})
     project = {
         "out": os.path.join(job, f"{name}_9x16.mp4"),
         "voice": os.path.join(job, "voice_tight.m4a"),
@@ -151,7 +172,7 @@ def run(opts: dict, progress=lambda p, m: None) -> dict:
              "sub": scenes[i]["phude"]}
             for i in range(n)
         ],
-        "broll": [],
+        "broll": broll_list,
     }
     pj = os.path.join(job, "project.json")
     json.dump(project, open(pj, "w", encoding="utf-8"), ensure_ascii=False)

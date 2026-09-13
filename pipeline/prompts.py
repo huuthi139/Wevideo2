@@ -69,21 +69,22 @@ def _parse_structured(text: str):
     scenes = []
     got_keyed = False
     for b in blocks:
-        doc = hinh = ""; phude = []
+        doc = hinh = broll = ""; phude = []
         for ln in b.splitlines():
-            m = re.match(r"\s*(doc|đọc|hinh|hình|phude|phụ đề)\s*[:：]\s*(.*)", ln, re.I)
+            m = re.match(r"\s*(doc|đọc|hinh|hình|phude|phụ đề|broll|b-roll|cutaway)\s*[:：]\s*(.*)", ln, re.I)
             if m:
                 got_keyed = True
                 k = m.group(1).lower(); v = m.group(2).strip()
                 if k in ("doc", "đọc"): doc = v
                 elif k in ("hinh", "hình"): hinh = v
+                elif k in ("broll", "b-roll", "cutaway"): broll = v
                 else: phude = [s.strip() for s in re.split(r"\s*/\s*|\s*\|\s*", v) if s.strip()]
         if not got_keyed and "|" in b:
             parts = [p.strip() for p in b.split("|")]
             doc = parts[0]; hinh = parts[1] if len(parts) > 1 else ""
             if len(parts) > 2: phude = [parts[2]]
         if doc or hinh:
-            scenes.append({"doc": doc, "hinh": hinh, "phude": phude})
+            scenes.append({"doc": doc, "hinh": hinh, "phude": phude, "broll": broll})
     return scenes if (got_keyed or any(s["hinh"] for s in scenes)) else None
 
 
@@ -99,7 +100,7 @@ def _naive(text: str):
         if kw:
             phude_line = ln.replace(kw, f"*{kw}*", 1)
         out.append({"doc": ln, "hinh": "a stick figure gesturing while explaining, simple props",
-                    "phude": [phude_line]})
+                    "phude": [phude_line], "broll": ""})
     return out
 
 
@@ -108,6 +109,7 @@ def enrich_script(script_text: str, style: str, llm_cfg: dict | None):
     st = _parse_structured(script_text)
     if st:
         for s in st:
+            s.setdefault("broll", "")
             if not s["hinh"]:
                 s["hinh"] = "a stick figure gesturing while explaining, simple props"
             if not s["phude"]:
@@ -126,7 +128,8 @@ def enrich_script(script_text: str, style: str, llm_cfg: dict | None):
             for s in scenes:
                 ph = s.get("phude") or [s.get("doc", "")]
                 if isinstance(ph, str): ph = [ph]
-                norm.append({"doc": s.get("doc", ""), "hinh": s.get("hinh", ""), "phude": ph})
+                norm.append({"doc": s.get("doc", ""), "hinh": s.get("hinh", ""), "phude": ph,
+                             "broll": s.get("broll", "")})
             if norm:
                 return norm, "llm"
         except Exception as e:
