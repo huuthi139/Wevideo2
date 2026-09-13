@@ -63,6 +63,39 @@ def probe_dur(p):
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
          "-of", "default=nw=1:nk=1", p]).decode().strip())
 
+def _synth_sfx(kind, path):
+    """SFX chuyển cảnh nhẹ, sinh bằng ffmpeg lavfi (không cần file ngoài)."""
+    if kind == "ting":
+        ff("-f", "lavfi", "-i", "sine=frequency=1568:duration=0.35",
+           "-af", "afade=t=out:st=0.04:d=0.31", "-ar", "44100", path)
+    elif kind == "pop":
+        ff("-f", "lavfi", "-i", "sine=frequency=1046:duration=0.09",
+           "-af", "afade=t=out:st=0.01:d=0.08", "-ar", "44100", path)
+    else:  # whoosh (woo)
+        ff("-f", "lavfi", "-i", "anoisesrc=d=0.35:color=pink:amplitude=0.6",
+           "-af", "highpass=f=400,lowpass=f=5000,afade=t=in:d=0.12,afade=t=out:st=0.18:d=0.17",
+           "-ar", "44100", path)
+
+
+def _add_sfx(out, cuts, gain):
+    """Trộn SFX nhẹ vào các mốc cắt cảnh của video CUỐI (voice giữ nguyên; sfx nhỏ theo gain)."""
+    kinds = ["ting", "whoosh", "pop"]
+    files = {}
+    for k in ("ting", "whoosh", "pop"):
+        files[k] = f"_sfx_{k}.wav"; _synth_sfx(k, files[k])
+    args = ["-i", out]; fl = []; labels = []
+    for j, t in enumerate(cuts):
+        k = kinds[j % len(kinds)]
+        args += ["-i", files[k]]
+        ms = max(0, int(round(t * 1000)))
+        fl.append(f"[{j+1}:a]adelay={ms}:all=1,volume={gain}[s{j}]")
+        labels.append(f"[s{j}]")
+    fl.append(f"[0:a]{''.join(labels)}amix=inputs={len(cuts)+1}:normalize=0[aout]")
+    tmp = "_sfxout.mp4"
+    ff(*args, "-filter_complex", ";".join(fl), "-map", "0:v", "-map", "[aout]",
+       "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", tmp)
+    os.replace(tmp, out)
+
 
 def render_scene(clip, dur, zoom, delogo, out, tail=0.0):
     """1 cảnh: [delogo] → zoom Ken Burns → upscale 1080x1920 → dài (dur+tail) giây.
@@ -202,6 +235,17 @@ def main(cfg_path):
         a += [out]
         ff(*a)
 
+    # ── 6.5) SFX chuyển cảnh (ting/woo/tích nhẹ) ──
+    sfx = cfg.get("sfx", {}) or {}
+    n_sfx = 0
+    if sfx.get("enabled") and voice and n > 1:
+        cuts = [round(scene_start[i] / speed, 3) for i in range(1, n)]  # mốc cắt ở video cuối
+        try:
+            _add_sfx(out, cuts, float(sfx.get("gain", 0.3)))
+            n_sfx = len(cuts)
+        except Exception as e:
+            print(f"[sfx] bỏ qua ({e})")
+
     out_abs = os.path.abspath(out)
     for f in os.listdir("."):
         if f.startswith("_") and os.path.isfile(f) and os.path.abspath(f) != out_abs:
@@ -212,7 +256,7 @@ def main(cfg_path):
     import shutil
     shutil.rmtree("_subs2", ignore_errors=True)
     d = probe_dur(out)
-    print(f"\n✅ {out} · {d:.2f}s · {n} cảnh · transition={tr_type} · broll={len(brolls)} · speed={speed}×")
+    print(f"\n✅ {out} · {d:.2f}s · {n} cảnh · transition={tr_type} · broll={len(brolls)} · sfx={n_sfx} · speed={speed}×")
 
 
 if __name__ == "__main__":

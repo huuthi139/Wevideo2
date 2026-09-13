@@ -53,6 +53,9 @@ def _defaults():
         "zoom": ENV.get("ZOOM", "auto"),
         "duration": int(ENV.get("DURATION", "4")),
         "speed": float(ENV.get("SPEED", "1.15")),
+        "auto_broll": ENV.get("AUTO_BROLL", "off").lower() in ("on", "true", "1"),
+        "sfx": ENV.get("SFX", "on").lower() in ("on", "true", "1"),
+        "sfx_gain": float(ENV.get("SFX_GAIN", "0.3")),
     }
 
 
@@ -107,6 +110,9 @@ async def api_create(req: Request):
         "zoom": body.get("zoom", d["zoom"]),
         "duration": int(body.get("duration", d["duration"])),
         "speed": float(body.get("speed", d["speed"])),
+        "auto_broll": bool(body.get("auto_broll", d["auto_broll"])),
+        "sfx": bool(body.get("sfx", d["sfx"])),
+        "sfx_gain": float(body.get("sfx_gain", d["sfx_gain"])),
         "flow_agent_url": FLOW_URL,
         "llm_cfg": _llm_cfg(),
     }

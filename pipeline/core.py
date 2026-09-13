@@ -120,6 +120,13 @@ def run(opts: dict, progress=lambda p, m: None) -> dict:
     starts = [x["start"] for x in g]; bounds = starts[1:] + [vend]
     durs = [round(bounds[i] - starts[i], 3) for i in range(n)]
 
+    # auto-B-roll: nếu bật, TỰ đặt broll cho cảnh xen kẽ đủ dài (cảnh chưa có broll thủ công)
+    if opts.get("auto_broll"):
+        for i, sc in enumerate(scenes):
+            if not sc.get("broll") and durs[i] >= 1.2 and i % 2 == 1:
+                sc["broll"] = ("cinematic extreme close-up insert shot, "
+                               + (sc.get("hinh") or "the key object") + ", shallow depth of field")
+
     # 3) gen clip Veo từng cảnh + B-roll cutaway (cảnh nào có broll thì gen thêm 1 clip phụ)
     flow = opts.get("flow_agent_url", "http://127.0.0.1:8001")
     clips = []
@@ -173,6 +180,7 @@ def run(opts: dict, progress=lambda p, m: None) -> dict:
             for i in range(n)
         ],
         "broll": broll_list,
+        "sfx": {"enabled": bool(opts.get("sfx", True)), "gain": float(opts.get("sfx_gain", 0.3))},
     }
     pj = os.path.join(job, "project.json")
     json.dump(project, open(pj, "w", encoding="utf-8"), ensure_ascii=False)
