@@ -5,6 +5,16 @@ set -e
 cd "$(dirname "$0")"
 ENGINE=engine/flow-agent
 
+# Chọn Python >=3.10 — engine flow-agent yêu cầu >=3.10, mà macOS system python3 hay là 3.9.
+PY=""
+for c in python3.13 python3.12 python3.11 python3.10 python3; do
+  command -v "$c" >/dev/null 2>&1 || continue
+  v=$("$c" -c 'import sys;print(sys.version_info[0]*100+sys.version_info[1])' 2>/dev/null)
+  [ -n "$v" ] && [ "$v" -ge 310 ] && { PY="$c"; break; }
+done
+[ -n "$PY" ] && echo "==> Python: $PY ($($PY --version 2>&1))" \
+  || { echo "‼ Cần Python >=3.10 (engine flow-agent yêu cầu). Cài:  brew install python@3.12"; exit 1; }
+
 echo "==> 1/3  ffmpeg…"
 if ! command -v ffmpeg >/dev/null 2>&1; then
   if command -v brew >/dev/null 2>&1; then
@@ -17,7 +27,7 @@ command -v ffmpeg >/dev/null 2>&1 && echo "   ok: $(ffmpeg -version | head -1 | 
 
 echo "==> 2/3  Engine gen Veo (flow-agent) — venv riêng…"
 if [ -f "$ENGINE/pyproject.toml" ]; then
-  python3 -m venv "$ENGINE/.venv"
+  "$PY" -m venv "$ENGINE/.venv"
   "$ENGINE/.venv/bin/pip" install -q --upgrade pip
   ( cd "$ENGINE" && ./.venv/bin/pip install -q -e . )   # editable: package ở tại chỗ → tìm thấy config.env
   "$ENGINE/.venv/bin/flow" serve --help >/dev/null 2>&1 && echo "   ok: engine sẵn sàng ($ENGINE/.venv/bin/flow)" \
@@ -27,7 +37,7 @@ else
 fi
 
 echo "==> 3/3  Web app — venv…"
-python3 -m venv .venv
+"$PY" -m venv .venv
 ./.venv/bin/pip install -q --upgrade pip
 ./.venv/bin/pip install -q "fastapi>=0.110" "uvicorn>=0.29" pillow edge-tts "mcp>=2,<3"
 # Auto-Shorts (cắt video dài → clip ngắn): transcribe + face-detect + upload (khá nặng ~250MB)
