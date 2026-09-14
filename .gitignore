@@ -9,3 +9,4 @@ __pycache__/
 engine.log
 .DS_Store
 VERSION
+.ext_loaded

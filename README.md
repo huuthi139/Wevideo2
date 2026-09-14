@@ -26,8 +26,8 @@ Cần sẵn trên máy: **python3**, **ffmpeg** (`brew install ffmpeg`). Giọng
 
 ## Engine gen Veo (flow-agent) — đóng gói kèm, `run.sh` tự bật
 
-`bash run.sh` tự khởi động engine (`engine/flow-agent`, port :8001) rồi web app. Chỉ còn **2 việc thủ công, làm 1 lần** (Chrome không cho tự động):
-1. Chrome → `chrome://extensions` → bật *Developer mode* → **Load unpacked** → chọn `engine/flow-chrome-extension`.
+`bash run.sh` tự khởi động engine (`engine/flow-agent`, port :8001) rồi web app. Chỉ còn **2 việc thủ công, làm 1 lần** (Chrome không cho script tự nạp extension):
+1. **Lần đầu `run.sh` tự mở giúp** `chrome://extensions` + Finder tại thư mục extension + copy đường dẫn vào clipboard. Anh chỉ cần bật *Developer mode* rồi **KÉO thư mục `flow-chrome-extension` thả vào trang** (hoặc *Load unpacked* → dán đường dẫn). Nạp 1 lần là xong (app nhớ, lần sau không mở lại).
 2. Mở tab **flow.google.com** và **đăng nhập** tài khoản có gói Flow (còn credit).
 
 Kiểm: `curl -s http://127.0.0.1:8001/health` có `"extension_connected":true`. Trên UI, chấm xanh = sẵn sàng.
