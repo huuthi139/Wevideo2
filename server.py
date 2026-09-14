@@ -45,7 +45,9 @@ UPDATE_REPO = ENV.get("UPDATE_REPO", "huuthi139/Wevideo2")
 # CHỈ ghi đè các mục CODE — KHÔNG đụng config.env / projects / engine / .venv
 _UPDATE_ITEMS = ["server.py", "mcp_server.py", "pipeline", "web", "scripts",
                  "README.md", "setup.sh", "run.sh", "build_installer.sh",
-                 "hermes-mcp-config.json", ".gitignore"]
+                 "hermes-mcp-config.json", ".gitignore",
+                 "auto_update.sh", "install_autoupdate.sh",
+                 "com.wevideo.autoupdate.plist.template"]
 
 
 def _current_version():
