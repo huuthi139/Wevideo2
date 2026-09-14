@@ -30,6 +30,8 @@ echo "==> 3/3  Web app — venv…"
 python3 -m venv .venv
 ./.venv/bin/pip install -q --upgrade pip
 ./.venv/bin/pip install -q "fastapi>=0.110" "uvicorn>=0.29" pillow edge-tts "mcp>=2,<3"
+# Auto-Shorts (cắt video dài → clip ngắn): transcribe + face-detect + upload (khá nặng ~250MB)
+./.venv/bin/pip install -q python-multipart faster-whisper opencv-python-headless
 echo "   ok: $(./.venv/bin/python -c 'import fastapi,PIL; from mcp.server import MCPServer; print("fastapi",fastapi.__version__,"| pillow",PIL.__version__,"| mcp ok")')"
 
 echo

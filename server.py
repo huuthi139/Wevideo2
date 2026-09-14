@@ -16,7 +16,7 @@ import time
 import urllib.request
 import uuid
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -66,6 +66,7 @@ def _current_version():
 
 
 from pipeline import core  # noqa: E402
+from pipeline import clipper  # noqa: E402
 
 app = FastAPI(title="WeVideo App")
 JOBS: dict[str, dict] = {}
@@ -239,6 +240,60 @@ def api_update():
                 "note": "Đã cập nhật. Khởi động lại app (bash run.sh) để áp dụng code mới."}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+@app.post("/api/clip")
+async def api_clip(file: UploadFile = File(...), target: int = Form(45), n_clips: int = Form(0),
+                   reframe: str = Form("auto"), captions: bool = Form(True),
+                   loudnorm: bool = Form(True), model: str = Form("base")):
+    """Upload video DÀI → cắt thành nhiều clip NGẮN 9:16 (transcribe→highlight→reframe→caption)."""
+    job_id = uuid.uuid4().hex[:12]
+    job_dir = os.path.join(PROJECTS, "clip_" + job_id)
+    os.makedirs(job_dir, exist_ok=True)
+    src = os.path.join(job_dir, "source.mp4")
+    with open(src, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    JOBS[job_id] = {"pct": 0, "msg": "Đã nhận video…", "done": False, "ok": None,
+                    "error": None, "clips": [], "job_dir": job_dir}
+    opts = {"video": src, "job_dir": job_dir, "name": "short", "target": int(target),
+            "n_clips": int(n_clips) or None, "reframe": reframe, "captions": bool(captions),
+            "loudnorm": bool(loudnorm), "model": model}
+
+    def worker():
+        def prog(p, m):
+            JOBS[job_id].update(pct=p, msg=m)
+        try:
+            res = clipper.run(opts, prog)
+        except Exception as e:
+            JOBS[job_id].update(done=True, ok=False, error=str(e)[:300]); return
+        if res.get("ok"):
+            clips = [{"file": os.path.basename(c["out"]), "dur": c["dur"], "reframe": c["reframe"],
+                      "captions": c["captions"], "title": c.get("title", "")} for c in res["clips"]]
+            JOBS[job_id].update(done=True, ok=True, pct=100, msg=f"Xong {len(clips)} clip.", clips=clips)
+        else:
+            JOBS[job_id].update(done=True, ok=False, error=res.get("error", "lỗi"))
+
+    threading.Thread(target=worker, daemon=True).start()
+    return {"job_id": job_id}
+
+
+@app.get("/api/clip_progress/{job_id}")
+def api_clip_progress(job_id: str):
+    j = JOBS.get(job_id)
+    if not j:
+        return JSONResponse({"error": "job không tồn tại"}, status_code=404)
+    return {k: j.get(k) for k in ("pct", "msg", "done", "ok", "error", "clips")}
+
+
+@app.get("/api/clip_file/{job_id}/{name}")
+def api_clip_file(job_id: str, name: str):
+    j = JOBS.get(job_id)
+    if not j or not j.get("job_dir"):
+        return JSONResponse({"error": "job không tồn tại"}, status_code=404)
+    p = os.path.join(j["job_dir"], os.path.basename(name))
+    if not os.path.exists(p):
+        return JSONResponse({"error": "chưa có file"}, status_code=404)
+    return FileResponse(p, media_type="video/mp4", filename=name)
 
 
 if os.path.isdir(os.path.join(HERE, "web")):

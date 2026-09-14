@@ -66,6 +66,28 @@ Bạn không cần mua vàng hay dầu thật, chỉ cần dự đoán giá sẽ
     <div id="result"></div>
   </div>
 
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 4px">✂️ Cắt Short từ video có sẵn</h2>
+    <div class="sub" style="margin-bottom:10px">Upload video ngang dài → tự cắt nhiều clip <b>9:16</b> cho Reels/Short (transcribe → tìm đoạn hay → reframe + caption + chuẩn âm).</div>
+    <input type="file" id="clipfile" accept="video/*" style="width:100%;background:#0c1610;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px;font:14px inherit">
+    <div class="grid">
+      <div><label>Độ dài mỗi clip (giây)</label><select id="ctarget"><option>30</option><option selected>45</option><option>60</option></select></div>
+      <div><label>Số clip (0 = tự)</label><select id="cn"><option>0</option><option>1</option><option>2</option><option>3</option><option>5</option></select></div>
+      <div><label>Reframe 9:16</label><select id="creframe"><option value="auto">Tự (bám mặt nếu có)</option><option value="center">Giữa</option><option value="face">Bám mặt</option></select></div>
+      <div><label>Nhận dạng</label><select id="cmodel"><option value="base">Base (nhanh)</option><option value="small">Small (chuẩn hơn)</option></select></div>
+    </div>
+    <div class="row" style="gap:18px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:13px"><input type="checkbox" id="ccap" checked> Caption tự động</label>
+      <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:13px"><input type="checkbox" id="cloud" checked> Chuẩn âm lượng</label>
+    </div>
+    <div class="row"><button id="cgo">Cắt clip</button><span class="prog" id="cnote"></span></div>
+    <div id="cprogCard" hidden style="margin-top:12px">
+      <div class="bar"><i id="cfill"></i></div>
+      <div class="prog" id="cprog"></div>
+      <div id="cresult" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px"></div>
+    </div>
+  </div>
+
   <div style="text-align:center;font-size:12px;color:var(--mut);margin-top:14px">
     Phiên bản <span id="ver">…</span> · <a href="#" id="checkupd" style="color:var(--acc);text-decoration:none">Kiểm tra cập nhật</a><span id="updmsg"></span>
   </div>
@@ -136,6 +158,34 @@ async function doUpdate(e){ if(e) e.preventDefault(); $('#updmsg').textContent='
       : ' · <span class="err">❌ '+(r.error||'lỗi')+'</span>';
   }catch(e){ $('#updmsg').innerHTML=' · <span class="err">lỗi gọi update</span>'; } }
 $('#checkupd').onclick=async(e)=>{ e.preventDefault(); $('#updmsg').textContent=' · đang kiểm…'; await loadVersion(); };
+
+$('#cgo').onclick = async () => {
+  const f = $('#clipfile').files[0];
+  if(!f){ $('#cnote').textContent='Chọn file video đã.'; return; }
+  $('#cgo').disabled=true; $('#cnote').textContent=' đang tải lên…';
+  $('#cprogCard').hidden=false; $('#cresult').innerHTML=''; $('#cfill').style.width='0';
+  const fd=new FormData();
+  fd.append('file', f); fd.append('target',$('#ctarget').value); fd.append('n_clips',$('#cn').value);
+  fd.append('reframe',$('#creframe').value); fd.append('model',$('#cmodel').value);
+  fd.append('captions', $('#ccap').checked); fd.append('loudnorm', $('#cloud').checked);
+  let r; try{ r=await (await fetch('/api/clip',{method:'POST',body:fd})).json(); }
+  catch(e){ $('#cprog').innerHTML='<span class="err">Lỗi upload</span>'; $('#cgo').disabled=false; return; }
+  $('#cnote').textContent='';
+  if(r.error){ $('#cprog').innerHTML='<span class="err">'+r.error+'</span>'; $('#cgo').disabled=false; return; }
+  const id=r.job_id;
+  const cpoll=setInterval(async()=>{
+    let p; try{ p=await (await fetch('/api/clip_progress/'+id)).json(); }catch(e){return;}
+    $('#cfill').style.width=(p.pct||0)+'%'; $('#cprog').textContent=(p.pct||0)+'% · '+(p.msg||'');
+    if(p.done){ clearInterval(cpoll); $('#cgo').disabled=false;
+      if(p.ok){ $('#cprog').textContent='✅ '+(p.clips||[]).length+' clip';
+        $('#cresult').innerHTML=(p.clips||[]).map((c,i)=>
+          '<div style="width:150px"><video controls muted src="/api/clip_file/'+id+'/'+c.file+'" style="width:150px;max-width:150px;border-radius:8px"></video>'
+          +'<div style="font-size:11px;color:var(--mut);text-align:center">#'+(i+1)+' · '+c.dur+'s · '+c.reframe+'<br>'+c.captions+' caption · <a class="dl" href="/api/clip_file/'+id+'/'+c.file+'" download>⬇ tải</a></div></div>'
+        ).join('');
+      } else { $('#cprog').innerHTML='<span class="err">❌ '+(p.error||'lỗi')+'</span>'; }
+    }
+  },1500);
+};
 
 checkHealth(); loadCfg(); loadVersion(); setInterval(checkHealth, 8000);
 </script>
