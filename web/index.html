@@ -65,6 +65,10 @@ Bạn không cần mua vàng hay dầu thật, chỉ cần dự đoán giá sẽ
     <div class="prog" id="prog"></div>
     <div id="result"></div>
   </div>
+
+  <div style="text-align:center;font-size:12px;color:var(--mut);margin-top:14px">
+    Phiên bản <span id="ver">…</span> · <a href="#" id="checkupd" style="color:var(--acc);text-decoration:none">Kiểm tra cập nhật</a><span id="updmsg"></span>
+  </div>
 </div>
 <script>
 const $ = s => document.querySelector(s);
@@ -118,7 +122,22 @@ $('#go').onclick = async () => {
   }, 1500);
 };
 
-checkHealth(); loadCfg(); setInterval(checkHealth, 8000);
+async function loadVersion(){ try{ const v=await (await fetch('/api/version')).json();
+  $('#ver').textContent=v.current||'?';
+  $('#updmsg').innerHTML = v.update_available
+    ? ' · <b style="color:var(--acc)">Có bản mới '+v.latest+'</b> — <a href="#" id="doupd" style="color:var(--acc)">Cập nhật ngay</a>'
+    : (v.latest ? ' · mới nhất ✓' : (v.error ? ' · '+v.error : ''));
+  const b=$('#doupd'); if(b) b.onclick=doUpdate;
+}catch(e){} }
+async function doUpdate(e){ if(e) e.preventDefault(); $('#updmsg').textContent=' · đang cập nhật…';
+  try{ const r=await (await fetch('/api/update',{method:'POST'})).json();
+    $('#updmsg').innerHTML = r.ok
+      ? ' · ✅ đã cập nhật '+r.version+' — <b>khởi động lại app</b> để áp dụng'
+      : ' · <span class="err">❌ '+(r.error||'lỗi')+'</span>';
+  }catch(e){ $('#updmsg').innerHTML=' · <span class="err">lỗi gọi update</span>'; } }
+$('#checkupd').onclick=async(e)=>{ e.preventDefault(); $('#updmsg').textContent=' · đang kiểm…'; await loadVersion(); };
+
+checkHealth(); loadCfg(); loadVersion(); setInterval(checkHealth, 8000);
 </script>
 </body>
 </html>

@@ -30,6 +30,10 @@ else
   echo "→ engine (working tree, fallback): $(du -sh engine | cut -f1)"
 fi
 
+# stamp phiên bản (sha app) để app biết bản của mình cho tính năng cập nhật
+APP_SHA=$(git -C "$APP" rev-parse --short HEAD 2>/dev/null || echo unknown)
+echo "$APP_SHA" > "$APP/VERSION"
+
 TAR="$(mktemp -t wevideo).tar.gz"
 tar --exclude='.venv' --exclude='projects' --exclude='__pycache__' --exclude='*.pyc' \
     --exclude='.git' --exclude='dist' --exclude='*.bak-*' --exclude='output' \

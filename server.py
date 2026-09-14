@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
+import tempfile
 import threading
 import time
 import urllib.request
@@ -36,6 +39,31 @@ APP_PORT = int(ENV.get("APP_PORT", "8080"))
 FLOW_URL = ENV.get("FLOW_AGENT_URL", "http://127.0.0.1:8001")
 PROJECTS = os.path.join(HERE, "projects")
 os.makedirs(PROJECTS, exist_ok=True)
+
+# ── Cập nhật phần mềm (kéo code mới từ GitHub qua gh CLI) ──
+UPDATE_REPO = ENV.get("UPDATE_REPO", "huuthi139/Wevideo2")
+# CHỈ ghi đè các mục CODE — KHÔNG đụng config.env / projects / engine / .venv
+_UPDATE_ITEMS = ["server.py", "mcp_server.py", "pipeline", "web", "scripts",
+                 "README.md", "setup.sh", "run.sh", "build_installer.sh",
+                 "hermes-mcp-config.json", ".gitignore"]
+
+
+def _current_version():
+    vf = os.path.join(HERE, "VERSION")
+    if os.path.exists(vf):
+        try:
+            return open(vf).read().strip()
+        except Exception:
+            pass
+    try:
+        r = subprocess.run(["git", "-C", HERE, "rev-parse", "--short", "HEAD"],
+                           capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            return r.stdout.strip()
+    except Exception:
+        pass
+    return "?"
+
 
 from pipeline import core  # noqa: E402
 
@@ -153,6 +181,64 @@ def api_video(job_id: str):
         return JSONResponse({"error": "chưa có video"}, status_code=404)
     return FileResponse(j["video"], media_type="video/mp4",
                         filename=os.path.basename(j["video"]))
+
+
+@app.get("/api/version")
+def api_version():
+    """Phiên bản hiện tại + bản mới nhất trên GitHub (qua gh CLI)."""
+    cur = _current_version()
+    latest, err = None, None
+    if not shutil.which("gh"):
+        err = "Thiếu 'gh' CLI (GitHub) → không kiểm được bản mới. Cài: brew install gh && gh auth login"
+    else:
+        try:
+            r = subprocess.run(["gh", "api", f"repos/{UPDATE_REPO}/commits/main", "--jq", ".sha"],
+                               capture_output=True, text=True, timeout=15)
+            if r.returncode == 0:
+                latest = r.stdout.strip()[:7]
+            else:
+                err = (r.stderr or "").strip()[-160:]
+        except Exception as e:
+            err = str(e)[:160]
+    avail = bool(latest and cur not in ("", "?") and latest[:7] != cur[:7])
+    return {"current": cur, "latest": latest, "update_available": avail, "repo": UPDATE_REPO, "error": err}
+
+
+@app.post("/api/update")
+def api_update():
+    """Kéo code mới nhất từ GitHub, ghi đè phần CODE (giữ config.env + projects + engine)."""
+    if not shutil.which("gh"):
+        return JSONResponse({"ok": False, "error": "Thiếu 'gh' CLI. Cài: brew install gh && gh auth login"}, status_code=400)
+    tmp = tempfile.mkdtemp(prefix="wevideo-upd-")
+    src = os.path.join(tmp, "src")
+    try:
+        r = subprocess.run(["gh", "repo", "clone", UPDATE_REPO, src, "--", "--depth", "1", "--branch", "main"],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            return JSONResponse({"ok": False, "error": "Tải bản mới lỗi: " + (r.stderr or "")[-200:]}, status_code=500)
+        sha = ""
+        try:
+            sha = subprocess.run(["git", "-C", src, "rev-parse", "--short", "HEAD"],
+                                 capture_output=True, text=True).stdout.strip()
+        except Exception:
+            pass
+        applied = 0
+        for item in _UPDATE_ITEMS:
+            si, di = os.path.join(src, item), os.path.join(HERE, item)
+            if not os.path.exists(si):
+                continue
+            if os.path.isdir(si):
+                shutil.rmtree(di, ignore_errors=True); shutil.copytree(si, di)
+            else:
+                shutil.copy2(si, di)
+            applied += 1
+        if sha:
+            with open(os.path.join(HERE, "VERSION"), "w") as f:
+                f.write(sha + "\n")
+        return {"ok": True, "version": sha or "?", "applied": applied,
+                "note": "Đã cập nhật. Khởi động lại app (bash run.sh) để áp dụng code mới."}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 if os.path.isdir(os.path.join(HERE, "web")):
