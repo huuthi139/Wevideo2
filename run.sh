@@ -19,7 +19,7 @@ if ! health | grep -q extension_connected; then
     echo "⚠ Engine chưa cài ($ENGINE/.venv). Chạy: bash setup.sh"
   fi
 fi
-H=$(health)
+H=$(health || true)   # engine có thể chưa lên (máy chậm) — ĐỪNG để set -e giết trước khi bật app
 EXT="$HERE/engine/flow-chrome-extension"
 if echo "$H" | grep -q '"extension_connected":true'; then
   echo "✅ Engine + extension: SẴN SÀNG"
