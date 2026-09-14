@@ -57,6 +57,12 @@ Bạn không cần mua vàng hay dầu thật, chỉ cần dự đoán giá sẽ
       <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:13px"><input type="checkbox" id="autobroll"> Auto B-roll (tự chèn cutaway)</label>
       <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:13px"><input type="checkbox" id="sfx" checked> Âm thanh chuyển cảnh (ting/woo)</label>
     </div>
+    <div class="grid" style="margin-top:10px">
+      <div><label>Màu phim</label><select id="grade"><option value="none">Không</option><option value="cine">Điện ảnh</option><option value="grain">Điện ảnh + hạt phim</option></select></div>
+      <div><label>Nhạc nền</label><select id="music"><option value="0">Tắt</option><option value="1">Bật (ducking)</option></select></div>
+      <div><label>Thẻ hook đầu (tuỳ chọn)</label><input id="hook" placeholder="VD: Bí quyết lãi kép" style="width:100%;background:#0c1610;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px 10px;font:14px inherit"></div>
+      <div><label>Thẻ CTA cuối (tuỳ chọn)</label><input id="cta" placeholder="VD: Theo dõi để xem thêm" style="width:100%;background:#0c1610;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px 10px;font:14px inherit"></div>
+    </div>
     <div class="row"><button id="go">Tạo video</button><span class="prog" id="note"></span></div>
   </div>
 
@@ -79,6 +85,7 @@ Bạn không cần mua vàng hay dầu thật, chỉ cần dự đoán giá sẽ
     <div class="row" style="gap:18px;flex-wrap:wrap">
       <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:13px"><input type="checkbox" id="ccap" checked> Caption tự động</label>
       <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:13px"><input type="checkbox" id="cloud" checked> Chuẩn âm lượng</label>
+      <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:13px"><input type="checkbox" id="cmusic"> Nhạc nền</label>
     </div>
     <div class="row"><button id="cgo">Cắt clip</button><span class="prog" id="cnote"></span></div>
     <div id="cprogCard" hidden style="margin-top:12px">
@@ -109,6 +116,7 @@ async function loadCfg(){ try{ const c=await (await fetch('/api/config')).json()
   $('#style').value=c.style; $('#voice').value=c.voice; $('#transition').value=c.transition;
   $('#zoom').value=c.zoom; $('#duration').value=String(c.duration); $('#speed').value=String(c.speed);
   $('#autobroll').checked=!!c.auto_broll; $('#sfx').checked=!!c.sfx;
+  if(c.grade) $('#grade').value=c.grade; $('#music').value=c.music?'1':'0';
   $('#llmHint').textContent = c.llm ? 'LLM enrich: BẬT — tự sinh mô tả hình + phụ đề từ câu tiếng Việt.'
     : 'LLM enrich: TẮT — hình sẽ chung chung. Muốn hình sát nội dung: thêm khối hinh:<mô tả tiếng Anh> mỗi cảnh, hoặc bật LLM trong config.env.';
 }catch(e){} }
@@ -121,7 +129,8 @@ $('#go').onclick = async () => {
   const body = { script, style:$('#style').value, voice:$('#voice').value,
     transition:$('#transition').value, zoom:$('#zoom').value,
     duration:Number($('#duration').value), speed:Number($('#speed').value),
-    auto_broll:$('#autobroll').checked, sfx:$('#sfx').checked };
+    auto_broll:$('#autobroll').checked, sfx:$('#sfx').checked,
+    grade:$('#grade').value, music:$('#music').value==='1', hook:$('#hook').value, cta:$('#cta').value };
   let r;
   try { r = await (await fetch('/api/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json(); }
   catch(e){ $('#prog').innerHTML='<span class="err">Lỗi gọi server</span>'; $('#go').disabled=false; return; }
@@ -167,7 +176,7 @@ $('#cgo').onclick = async () => {
   const fd=new FormData();
   fd.append('file', f); fd.append('target',$('#ctarget').value); fd.append('n_clips',$('#cn').value);
   fd.append('reframe',$('#creframe').value); fd.append('model',$('#cmodel').value);
-  fd.append('captions', $('#ccap').checked); fd.append('loudnorm', $('#cloud').checked);
+  fd.append('captions', $('#ccap').checked); fd.append('loudnorm', $('#cloud').checked); fd.append('music', $('#cmusic').checked);
   let r; try{ r=await (await fetch('/api/clip',{method:'POST',body:fd})).json(); }
   catch(e){ $('#cprog').innerHTML='<span class="err">Lỗi upload</span>'; $('#cgo').disabled=false; return; }
   $('#cnote').textContent='';

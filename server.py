@@ -85,6 +85,9 @@ def _defaults():
         "auto_broll": ENV.get("AUTO_BROLL", "off").lower() in ("on", "true", "1"),
         "sfx": ENV.get("SFX", "on").lower() in ("on", "true", "1"),
         "sfx_gain": float(ENV.get("SFX_GAIN", "0.3")),
+        "grade": ENV.get("GRADE", "none"),
+        "music": ENV.get("MUSIC", "off").lower() in ("on", "true", "1"),
+        "music_gain": float(ENV.get("MUSIC_GAIN", "0.12")),
     }
 
 
@@ -142,6 +145,12 @@ async def api_create(req: Request):
         "auto_broll": bool(body.get("auto_broll", d["auto_broll"])),
         "sfx": bool(body.get("sfx", d["sfx"])),
         "sfx_gain": float(body.get("sfx_gain", d["sfx_gain"])),
+        "grade": body.get("grade", d["grade"]),
+        "hook": (body.get("hook") or "").strip() or None,
+        "hook_sub": (body.get("hook_sub") or "").strip() or None,
+        "cta": (body.get("cta") or "").strip() or None,
+        "music": bool(body.get("music", d["music"])),
+        "music_gain": float(body.get("music_gain", d["music_gain"])),
         "flow_agent_url": FLOW_URL,
         "llm_cfg": _llm_cfg(),
     }
@@ -245,7 +254,8 @@ def api_update():
 @app.post("/api/clip")
 async def api_clip(file: UploadFile = File(...), target: int = Form(45), n_clips: int = Form(0),
                    reframe: str = Form("auto"), captions: bool = Form(True),
-                   loudnorm: bool = Form(True), model: str = Form("base")):
+                   loudnorm: bool = Form(True), model: str = Form("base"),
+                   music: bool = Form(False), music_gain: float = Form(0.12)):
     """Upload video DÀI → cắt thành nhiều clip NGẮN 9:16 (transcribe→highlight→reframe→caption)."""
     job_id = uuid.uuid4().hex[:12]
     job_dir = os.path.join(PROJECTS, "clip_" + job_id)
@@ -257,7 +267,8 @@ async def api_clip(file: UploadFile = File(...), target: int = Form(45), n_clips
                     "error": None, "clips": [], "job_dir": job_dir}
     opts = {"video": src, "job_dir": job_dir, "name": "short", "target": int(target),
             "n_clips": int(n_clips) or None, "reframe": reframe, "captions": bool(captions),
-            "loudnorm": bool(loudnorm), "model": model}
+            "loudnorm": bool(loudnorm), "model": model,
+            "music": bool(music), "music_gain": float(music_gain)}
 
     def worker():
         def prog(p, m):
@@ -268,7 +279,7 @@ async def api_clip(file: UploadFile = File(...), target: int = Form(45), n_clips
             JOBS[job_id].update(done=True, ok=False, error=str(e)[:300]); return
         if res.get("ok"):
             clips = [{"file": os.path.basename(c["out"]), "dur": c["dur"], "reframe": c["reframe"],
-                      "captions": c["captions"], "title": c.get("title", "")} for c in res["clips"]]
+                      "captions": c["captions"], "music": c.get("music"), "title": c.get("title", "")} for c in res["clips"]]
             JOBS[job_id].update(done=True, ok=True, pct=100, msg=f"Xong {len(clips)} clip.", clips=clips)
         else:
             JOBS[job_id].update(done=True, ok=False, error=res.get("error", "lỗi"))

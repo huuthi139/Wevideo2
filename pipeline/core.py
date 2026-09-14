@@ -194,6 +194,40 @@ def run(opts: dict, progress=lambda p, m: None) -> dict:
     out = project["out"]
     if not os.path.exists(out):
         return {"ok": False, "error": "Không tạo được file cuối", "scenes": scenes}
+
+    # 5) ENHANCE (tuỳ chọn): màu điện ảnh + thẻ hook/CTA + nhạc nền
+    try:
+        from . import enrich_av
+        grade = opts.get("grade")
+        if grade and grade != "none":
+            gvf = enrich_av.grade_vf(grade)
+            if gvf:
+                g = os.path.join(job, "_graded.mp4")
+                subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", out, "-vf", gvf,
+                                "-c:v", "libx264", "-preset", "medium", "-crf", "19",
+                                "-pix_fmt", "yuv420p", "-c:a", "copy", g], check=True)
+                os.replace(g, out)
+        parts = []
+        if opts.get("hook"):
+            hk = os.path.join(job, "_hook.mp4")
+            enrich_av.make_card_clip(opts["hook"], hk, style=style, dur=1.2,
+                                     sub=opts.get("hook_sub"), workdir=job); parts.append(hk)
+        parts.append(out)
+        if opts.get("cta"):
+            ct = os.path.join(job, "_cta.mp4")
+            enrich_av.make_card_clip(opts["cta"], ct, style=style, dur=1.4, workdir=job); parts.append(ct)
+        if len(parts) > 1:
+            full = os.path.join(job, "_full.mp4")
+            enrich_av.concat_parts(parts, full); os.replace(full, out)
+        if opts.get("music"):
+            mus = enrich_av.pick_music(opts.get("music_name"))
+            if mus:
+                mo = os.path.join(job, "_mus.mp4")
+                if enrich_av.add_music(out, mo, mus, float(opts.get("music_gain", 0.12))):
+                    os.replace(mo, out)
+    except Exception as e:
+        print("[core] enhance lỗi (bỏ qua):", e)
+
     progress(100, "Xong.")
     return {"ok": True, "out": out, "scenes": scenes, "source": source,
             "duration": round(_ff_dur(out), 2)}

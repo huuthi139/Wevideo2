@@ -272,6 +272,17 @@ def run(opts, progress=lambda p, m: None):
         try:
             r = make_clip(video, c, out, wd, reframe=reframe, captions=captions,
                           loudnorm=loudnorm, words=all_words if captions else None)
+            if opts.get("music"):
+                from . import enrich_av
+                mus = enrich_av.pick_music(opts.get("music_name"))
+                if mus:
+                    tmp = out + ".mus.mp4"
+                    try:
+                        if enrich_av.add_music(out, tmp, mus, float(opts.get("music_gain", 0.12))):
+                            os.replace(tmp, out)
+                            r["music"] = os.path.basename(mus)
+                    except Exception as e:
+                        print("[clipper] music lỗi:", e)
             r["start"] = c["start"]; r["title"] = (c["text"][:70] or f"Clip {i+1}")
             results.append(r)
         except Exception as e:
