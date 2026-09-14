@@ -7,3 +7,4 @@ __pycache__/
 *.log
 *.bak-*
 engine.log
+.DS_Store
