@@ -6,9 +6,10 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 cd "$(dirname "$0")" || exit 0
 HERE="$(pwd)"
 PORT=$(grep -E '^APP_PORT=' config.env 2>/dev/null | cut -d= -f2- | tr -d "\"'"); PORT=${PORT:-8080}
-LOG="$HERE/autoupdate.log"; exec >>"$LOG" 2>&1
-# giữ log gọn (≤ 500 dòng)
-[ -f "$LOG" ] && tail -n 500 "$LOG" > "$LOG.tmp" 2>/dev/null && mv "$LOG.tmp" "$LOG" 2>/dev/null
+LOG="$HERE/autoupdate.log"
+# giữ log gọn (≤ 500 dòng) — PHẢI trim TRƯỚC exec, nếu không mv sẽ đổi inode khiến echo mất
+[ -f "$LOG" ] && { tail -n 500 "$LOG" > "$LOG.tmp" 2>/dev/null && mv "$LOG.tmp" "$LOG" 2>/dev/null; }
+exec >>"$LOG" 2>&1
 
 echo "── $(date '+%F %T') kiểm tra cập nhật ──"
 command -v gh >/dev/null 2>&1 || { echo "thiếu gh → bỏ qua (cài: brew install gh && gh auth login)"; exit 0; }
