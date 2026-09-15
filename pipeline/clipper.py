@@ -100,7 +100,8 @@ def fixed_windows(total, target=45.0, n=None):
 # ── 3) reframe 16:9 → 9:16 ───────────────────────────────────────
 def _face_center_x(video, start, end, iw, ih):
     """x-center (px nguồn) của mặt to nhất — chạy cv2 ở SUBPROCESS RIÊNG (tránh xung đột 'av')."""
-    times = ",".join(f"{start + (end - start) * f:.2f}" for f in (0.15, 0.35, 0.55, 0.75, 0.9))
+    times = ",".join(f"{start + (end - start) * f:.2f}"
+                     for f in (0.06, 0.14, 0.22, 0.3, 0.38, 0.46, 0.54, 0.62, 0.7, 0.78, 0.86, 0.94))
     helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_facedetect.py")
     try:
         import sys as _sys
