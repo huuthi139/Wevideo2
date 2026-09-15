@@ -97,32 +97,87 @@ def fixed_windows(total, target=45.0, n=None):
     return clips
 
 
-# ── 3) reframe 16:9 → 9:16 ───────────────────────────────────────
-def _face_center_x(video, start, end, iw, ih):
-    """x-center (px nguồn) của mặt to nhất — chạy cv2 ở SUBPROCESS RIÊNG (tránh xung đột 'av')."""
-    times = ",".join(f"{start + (end - start) * f:.2f}"
-                     for f in (0.06, 0.14, 0.22, 0.3, 0.38, 0.46, 0.54, 0.62, 0.7, 0.78, 0.86, 0.94))
+# ── 3) reframe 16:9 → 9:16 (bám mặt ĐỘNG: pan theo mặt qua thời gian) ──
+def _face_positions(video, st, en, iw, ih, n):
+    """Gọi _facedetect.py với n mốc đều trong [st,en] → list (t_local, x|None)."""
+    import sys as _sys
+    dur = en - st
+    ts = [dur * i / (n - 1) for i in range(n)] if n > 1 else [dur / 2]
     helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_facedetect.py")
+    abst = ",".join(f"{st + t:.2f}" for t in ts)
     try:
-        import sys as _sys
-        out = subprocess.run([_sys.executable, helper, video, str(iw), times],
-                             capture_output=True, text=True, timeout=60).stdout.strip()
-        return float(out) if out and out != "none" else None
+        out = subprocess.run([_sys.executable, helper, video, str(iw), abst],
+                             capture_output=True, text=True, timeout=120).stdout.strip()
+        vals = (out.split(",") + ["none"] * n)[:n]
     except Exception:
-        return None
+        vals = ["none"] * n
+    res = []
+    for t, v in zip(ts, vals):
+        try:
+            res.append((t, float(v)))
+        except Exception:
+            res.append((t, None))
+    return res
 
 
-def _reframe_vf(iw, ih, mode, cx):
-    """Filter crop 9:16 + scale 1080x1920."""
+def _face_track(video, st, en, iw, ih):
+    """Đường bám mặt (t_local, x px nguồn) — nội suy chỗ mất mặt + làm mượt EMA 2 chiều.
+    None nếu gần như không thấy mặt (→ center)."""
+    dur = en - st
+    n = max(6, min(64, int(dur / 0.7) + 1))          # ~ mỗi 0.7s 1 mẫu (bám nhanh)
+    pos = _face_positions(video, st, en, iw, ih, n)
+    det = [(t, x) for t, x in pos if x is not None]
+    if len(det) < 2:
+        return [(0.0, det[0][1]), (dur, det[0][1])] if det else None
+    ts = [t for t, _ in pos]
+    track = []
+    for t in ts:                                     # nội suy tuyến tính, giữ 2 đầu
+        if t <= det[0][0]:
+            x = det[0][1]
+        elif t >= det[-1][0]:
+            x = det[-1][1]
+        else:
+            x = det[-1][1]
+            for i in range(len(det) - 1):
+                t0, x0 = det[i]; t1, x1 = det[i + 1]
+                if t0 <= t <= t1:
+                    x = x0 + (x1 - x0) * (t - t0) / (t1 - t0) if t1 > t0 else x0
+                    break
+        track.append((t, x))
+    a = 0.55                                         # EMA 2 chiều: mượt mà vẫn bám nhanh
+    fwd = []; prev = track[0][1]
+    for t, x in track:
+        prev = a * x + (1 - a) * prev; fwd.append((t, prev))
+    sm = []; prev = fwd[-1][1]
+    for t, x in reversed(fwd):
+        prev = a * x + (1 - a) * prev; sm.append((t, prev))
+    sm.reverse()
+    return sm
+
+
+def _reframe_vf(iw, ih, mode, cx=None, track=None):
+    """Filter crop 9:16 + scale 1080x1920. mode='track' → crop x(t) bám mặt động."""
     W, H = 1080, 1920
     tgt = 9 / 16
     if iw / ih >= tgt:                       # nguồn NGANG → crop bề rộng
         cw = int(round(ih * tgt)); cw -= cw % 2
-        if mode == "face" and cx is not None:
-            x = int(round(min(max(cx - cw / 2, 0), iw - cw)))
+        maxx = iw - cw
+        if mode == "track" and track and len(track) >= 2:
+            pts = [(t, min(max(c - cw / 2.0, 0), maxx)) for t, c in track]   # cropx đã kẹp biên
+            segs = []
+            for i in range(len(pts) - 1):
+                t0, x0 = pts[i]; t1, x1 = pts[i + 1]
+                if t1 - t0 < 0.05:
+                    continue
+                segs.append("gte(t,%.2f)*lt(t,%.2f)*(%.0f+(%.0f)*(t-%.2f)/%.2f)"
+                            % (t0, t1, x0, x1 - x0, t0, t1 - t0))
+            segs.append("gte(t,%.2f)*%.0f" % (pts[-1][0], pts[-1][1]))
+            crop = "crop=%d:%d:x='%s':y=0" % (cw, ih, "+".join(segs))   # x='...' bảo vệ dấu phẩy
+        elif mode == "face" and cx is not None:
+            x = int(round(min(max(cx - cw / 2, 0), maxx)))
+            crop = f"crop={cw}:{ih}:{x}:0"
         else:
-            x = (iw - cw) // 2
-        crop = f"crop={cw}:{ih}:{x}:0"
+            crop = f"crop={cw}:{ih}:{(iw - cw) // 2}:0"
     else:                                    # nguồn DỌC/vuông → crop chiều cao (giữa)
         ch = int(round(iw / tgt)); ch -= ch % 2
         crop = f"crop={iw}:{ch}:0:{(ih - ch) // 2}"
@@ -186,12 +241,12 @@ def make_clip(video, clip, out, workdir, reframe="auto", captions=True,
     iw, ih, _ = _probe(video)
     st, en = clip["start"], clip["end"]
     dur = round(en - st, 2)
-    cx = None
+    cx = None; track = None
     mode = reframe
     if reframe in ("auto", "face"):
-        cx = _face_center_x(video, st, en, iw, ih)
-        mode = "face" if cx is not None else "center"
-    vf = _reframe_vf(iw, ih, mode, cx)
+        track = _face_track(video, st, en, iw, ih)
+        mode = "track" if track else "center"
+    vf = _reframe_vf(iw, ih, mode, cx=cx, track=track)
 
     base = os.path.join(workdir, "_seg.mp4")
     af = "loudnorm=I=-16:TP=-1.5:LRA=11" if loudnorm else None

@@ -1,29 +1,19 @@
-"""Nhận diện mặt (cv2) — CHẠY RIÊNG process để KHÔNG load chung 'av' của faster-whisper
-(hai thư viện cùng bundle libavdevice → crash). In ra x-center (px nguồn) hoặc 'none'.
+"""Nhận diện mặt (cv2) — CHẠY RIÊNG process để KHÔNG load chung 'av' của faster-whisper.
 Dùng: python _facedetect.py <video> <iw> <t1,t2,...>
+IN RA: mỗi mốc thời gian 1 giá trị x-center (px nguồn) của mặt TO nhất tại khung đó, hoặc 'none',
+ngăn cách bằng dấu phẩy, ĐÚNG THỨ TỰ mốc truyền vào → phía gọi dựng đường bám mặt theo thời gian.
 
-Ưu tiên YuNet DNN (cv2.FaceDetectorYN — có trên opencv 5.x, bắt cả mặt nghiêng/góc, mạnh hơn Haar).
-opencv 5.0 ĐÃ BỎ CascadeClassifier → nếu thiếu YuNet mới thử Haar (opencv 4.x). Gộp nhiều khung,
-ưu tiên mặt TO nhất (nhân vật chính) → bám mặt cho video talking-head.
+Ưu tiên YuNet DNN (cv2.FaceDetectorYN — opencv 5.x, bắt cả mặt nghiêng/góc). opencv 5.0 BỎ
+CascadeClassifier → thiếu YuNet mới thử Haar (opencv 4.x).
 """
 import os
 import sys
-
-
-def _center(cands, iw):
-    if not cands:
-        return "none"
-    mx = max(a for _, a in cands)
-    xs = sorted(x for x, a in cands if a >= 0.4 * mx)
-    return xs[len(xs) // 2] if xs else "none"
-
 
 try:
     import cv2
     video, iw = sys.argv[1], float(sys.argv[2])
     times = [float(x) for x in sys.argv[3].split(",") if x]
     cap = cv2.VideoCapture(video)
-    cands = []  # (x_center px nguồn, diện tích mặt)
 
     yunet = None
     model = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "yunet.onnx")
@@ -32,7 +22,6 @@ try:
             yunet = cv2.FaceDetectorYN.create(model, "", (320, 320), 0.6, 0.3, 5000)
         except Exception:
             yunet = None
-
     haar = []
     if yunet is None and hasattr(cv2, "CascadeClassifier"):
         for n in ("haarcascade_frontalface_default.xml", "haarcascade_frontalface_alt2.xml"):
@@ -40,12 +29,9 @@ try:
             if not c.empty():
                 haar.append(c)
 
-    for t in times:
-        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
-        ok, frame = cap.read()
-        if not ok:
-            continue
+    def largest_x(frame):
         h, w = frame.shape[:2]
+        best = None  # (area, x_center_src)
         if yunet is not None:
             yunet.setInputSize((w, h))
             try:
@@ -54,14 +40,31 @@ try:
                 faces = None
             if faces is not None:
                 for f in faces:
-                    fx, fy, fw, fh = float(f[0]), float(f[1]), float(f[2]), float(f[3])
-                    cands.append(((fx + fw / 2.0) / w * iw, fw * fh))
+                    fx, fw, fh = float(f[0]), float(f[2]), float(f[3])
+                    a = fw * fh
+                    if best is None or a > best[0]:
+                        best = (a, (fx + fw / 2.0) / w * iw)
         else:
             g = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             for c in haar:
                 for (x, y, fw, fh) in c.detectMultiScale(g, 1.1, 4, minSize=(60, 60)):
-                    cands.append(((x + fw / 2.0) / w * iw, fw * fh))
+                    a = fw * fh
+                    if best is None or a > best[0]:
+                        best = (a, (x + fw / 2.0) / w * iw)
+        return best[1] if best else None
+
+    out = []
+    for t in times:
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ok, frame = cap.read()
+        x = largest_x(frame) if ok else None
+        out.append(f"{x:.1f}" if x is not None else "none")
     cap.release()
-    print(_center(cands, iw))
+    print(",".join(out))
 except Exception:
-    print("none")
+    # số 'none' đúng bằng số mốc để phía gọi không lệch
+    try:
+        n = len(sys.argv[3].split(","))
+    except Exception:
+        n = 1
+    print(",".join(["none"] * n))
