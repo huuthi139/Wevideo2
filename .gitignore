@@ -1,9 +1,13 @@
 .venv/
-engine/
+.venv-tts/
+# engine + skill: THEO DÕI code (để Update kéo được), BỎ QUA phần theo-máy
+engine/flow-agent/config.env
+skill/video-nguoi-que/output/
 projects/
 dist/
 __pycache__/
 *.pyc
+*.egg-info/
 *.log
 *.bak-*
 engine.log

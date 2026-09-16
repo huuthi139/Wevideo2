@@ -1,0 +1,82 @@
+{
+ "ten": "ky-luat-thang-dong-luc",
+ "phong_cach": "phan",
+ "chu_ky": "WSS",
+ "giong": "vi-VN-NamMinhNeural",
+ "rate": "+6%",
+ "gap": 0.1,
+ "toc_do_cuoi": 1.12,
+ "thumbnail": {
+  "anh": "a07",
+  "giay": 0.3,
+  "dong_tren": "ĐỪNG CHỜ",
+  "dong_chinh": "ĐỘNG LỰC",
+  "nhan_do": "XÂY KỶ LUẬT"
+ },
+ "anh_can_gen": {
+  "a01": "sitting slumped on a chair waiting, looking up at a big clock on the wall, a thought bubble with a question mark, bored and passive",
+  "a02": "standing under a sky split in half, one side a bright sun and the other side a rain cloud, confused expression, motivation coming and going like weather",
+  "a03": "standing firm and calm with feet planted wide, arms at sides, steady determined face, unshaken like a rock",
+  "a04": "holding a big checklist with checkmarks ticked one by one, beside a calendar with many days crossed off, disciplined daily routine",
+  "a05": "carefully placing one small brick onto a growing brick wall, one brick at a time, patient and focused",
+  "a06": "walking up a rising staircase that curves upward into a tall growth arrow, a small figure at the bottom and a big confident figure at the top",
+  "a07": "stepping forward confidently toward a rising sun with radiant golden rays and sparkling chalk dust, bright uplifting finale"
+ },
+ "nhip": [
+  {
+   "anh": "a01",
+   "doc": "Nhiều người chờ có động lực rồi mới làm.",
+   "phu_de": [
+    "Chờ *ĐỘNG LỰC*",
+    "rồi mới làm"
+   ]
+  },
+  {
+   "anh": "a02",
+   "doc": "Nhưng động lực đến rồi đi, như thời tiết.",
+   "phu_de": [
+    "Động lực *đến rồi đi*",
+    "như thời tiết"
+   ]
+  },
+  {
+   "anh": "a03",
+   "doc": "Người thành công không dựa vào cảm hứng.",
+   "phu_de": [
+    "Người thành công",
+    "*KHÔNG* dựa cảm hứng"
+   ]
+  },
+  {
+   "anh": "a04",
+   "doc": "Họ dựa vào kỷ luật.",
+   "phu_de": [
+    "Họ dựa vào *KỶ LUẬT*"
+   ]
+  },
+  {
+   "anh": "a05",
+   "doc": "Mỗi ngày làm một việc nhỏ, dù không muốn.",
+   "phu_de": [
+    "Mỗi ngày *một việc nhỏ*",
+    "dù không muốn"
+   ]
+  },
+  {
+   "anh": "a06",
+   "doc": "Một phần trăm mỗi ngày, một năm sau thành người khác.",
+   "phu_de": [
+    "*1%* mỗi ngày",
+    "1 năm thành *người khác*"
+   ]
+  },
+  {
+   "anh": "a07",
+   "doc": "Đừng chờ cảm hứng. Hãy bắt đầu ngay hôm nay.",
+   "phu_de": [
+    "Đừng chờ cảm hứng.",
+    "Bắt đầu *HÔM NAY*"
+   ]
+  }
+ ]
+}

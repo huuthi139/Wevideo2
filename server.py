@@ -218,7 +218,7 @@ def api_version():
 
 @app.post("/api/update")
 def api_update():
-    """Kéo code mới nhất từ GitHub, ghi đè phần CODE (giữ config.env + projects + engine)."""
+    """Kéo code mới nhất từ GitHub, ghi đè CODE app + engine + skill (GIỮ config.env/projects/.venv/.venv-tts theo máy)."""
     if not shutil.which("gh"):
         return JSONResponse({"ok": False, "error": "Thiếu 'gh' CLI. Cài: brew install gh && gh auth login"}, status_code=400)
     tmp = tempfile.mkdtemp(prefix="wevideo-upd-")
@@ -244,11 +244,24 @@ def api_update():
             else:
                 shutil.copy2(si, di)
             applied += 1
+        # engine + skill: MERGE-copy (dirs_exist_ok) — ghi đè CODE, GIỮ config.env/.venv/.venv-tts
+        # của máy (repo gitignore chúng nên bản clone không có → merge không đụng file chỉ-ở-máy-đích).
+        eng_si = os.path.join(src, "engine")
+        if os.path.isdir(eng_si):
+            shutil.copytree(eng_si, os.path.join(HERE, "engine"), dirs_exist_ok=True)
+            applied += 1
+        sk_si = os.path.join(src, "skill", "video-nguoi-que")
+        sk_di = os.path.expanduser("~/.claude/skills/video-nguoi-que")
+        if os.path.isdir(sk_si) and os.path.isdir(sk_di):
+            shutil.copytree(sk_si, sk_di, dirs_exist_ok=True)
+            applied += 1
         if sha:
             with open(os.path.join(HERE, "VERSION"), "w") as f:
                 f.write(sha + "\n")
         return {"ok": True, "version": sha or "?", "applied": applied,
-                "note": "Đã cập nhật. Khởi động lại app (bash run.sh) để áp dụng code mới."}
+                "note": "Đã cập nhật app + engine + skill. Khởi động lại app (bash run.sh) để áp app-code. "
+                        "Engine đổi code → tắt tiến trình 'flow serve' rồi 'bash run.sh' để nạp lại; "
+                        "extension đổi → Reload trong chrome://extensions. Skill áp dụng ngay lần chạy sau."}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

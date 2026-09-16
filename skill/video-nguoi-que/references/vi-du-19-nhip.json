@@ -1,0 +1,202 @@
+[
+ {
+  "i": 1,
+  "img": "a01",
+  "lines": [
+   "Tôi có *100 F1*",
+   "trong *30 ngày*"
+  ],
+  "dur": 2.058,
+  "clip": 2.158,
+  "start": 0.0
+ },
+ {
+  "i": 2,
+  "img": "a02",
+  "lines": [
+   "*không nhắn rủ* ai quen"
+  ],
+  "dur": 1.936,
+  "clip": 2.036,
+  "start": 2.158
+ },
+ {
+  "i": 3,
+  "img": "a03",
+  "lines": [
+   "Trước đây tôi làm *y như bạn*"
+  ],
+  "dur": 1.52,
+  "clip": 1.62,
+  "start": 4.194
+ },
+ {
+  "i": 4,
+  "img": "a04",
+  "lines": [
+   "*mời từng người*"
+  ],
+  "dur": 0.885,
+  "clip": 0.985,
+  "start": 5.814
+ },
+ {
+  "i": 5,
+  "img": "a05",
+  "lines": [
+   "trả lời *đi trả lời lại*"
+  ],
+  "dur": 1.945,
+  "clip": 2.045,
+  "start": 6.799
+ },
+ {
+  "i": 6,
+  "img": "a06",
+  "lines": [
+   "*chạy xe* khắp thành phố"
+  ],
+  "dur": 1.292,
+  "clip": 1.392,
+  "start": 8.844
+ },
+ {
+  "i": 7,
+  "img": "a07",
+  "lines": [
+   "ngồi cà phê",
+   "với *người không tới*"
+  ],
+  "dur": 1.687,
+  "clip": 1.787,
+  "start": 10.236
+ },
+ {
+  "i": 8,
+  "img": "a08",
+  "lines": [
+   "Rồi tôi *hiểu ra*"
+  ],
+  "dur": 1.053,
+  "clip": 1.153,
+  "start": 12.023
+ },
+ {
+  "i": 9,
+  "img": "a01",
+  "lines": [
+   "tôi *không thiếu người*"
+  ],
+  "dur": 1.054,
+  "clip": 1.154,
+  "start": 13.176
+ },
+ {
+  "i": 10,
+  "img": "a09",
+  "lines": [
+   "tôi thiếu *hệ thống*",
+   "thu hút *tự động*"
+  ],
+  "dur": 2.267,
+  "clip": 2.367,
+  "start": 14.33
+ },
+ {
+  "i": 11,
+  "img": "a08",
+  "lines": [
+   "tôi thay tất cả",
+   "bằng *ba thứ*"
+  ],
+  "dur": 1.642,
+  "clip": 1.742,
+  "start": 16.697
+ },
+ {
+  "i": 12,
+  "img": "a09",
+  "lines": [
+   "một *phễu*",
+   "người lạ *tự tìm tới*"
+  ],
+  "dur": 1.879,
+  "clip": 1.979,
+  "start": 18.439
+ },
+ {
+  "i": 13,
+  "img": "a10",
+  "lines": [
+   "bộ nội dung",
+   "*trả lời thay tôi*"
+  ],
+  "dur": 1.794,
+  "clip": 1.894,
+  "start": 20.418
+ },
+ {
+  "i": 14,
+  "img": "a11",
+  "lines": [
+   "hệ thống *tự chuyển đổi*",
+   "thành *F1*"
+  ],
+  "dur": 2.039,
+  "clip": 2.139,
+  "start": 22.312
+ },
+ {
+  "i": 15,
+  "img": "a11",
+  "lines": [
+   "*hoàn toàn tự động*",
+   "lúc tôi *đang đi chơi*"
+  ],
+  "dur": 2.218,
+  "clip": 2.318,
+  "start": 24.451
+ },
+ {
+  "i": 16,
+  "img": "a12",
+  "lines": [
+   "bạn *sao chép* được",
+   "*miễn phí*"
+  ],
+  "dur": 2.085,
+  "clip": 2.185,
+  "start": 26.769
+ },
+ {
+  "i": 17,
+  "img": "a12",
+  "lines": [
+   "comment *\"hệ thống\"*"
+  ],
+  "dur": 1.384,
+  "clip": 1.484,
+  "start": 28.954
+ },
+ {
+  "i": 18,
+  "img": "a10",
+  "lines": [
+   "tôi gửi *công thức*",
+   "và *cách làm*"
+  ],
+  "dur": 2.136,
+  "clip": 2.236,
+  "start": 30.438
+ },
+ {
+  "i": 19,
+  "img": "a02",
+  "lines": [
+   "*comment ngay* nhé"
+  ],
+  "dur": 0.935,
+  "clip": 1.035,
+  "start": 32.674
+ }
+]

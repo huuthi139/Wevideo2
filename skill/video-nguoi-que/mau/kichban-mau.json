@@ -1,0 +1,22 @@
+{
+  "ten": "100F1-30NGAY",
+  "phong_cach": "trang",
+  "chu_ky": "WSS",
+  "giong": "vi-VN-NamMinhNeural",
+  "rate": "+6%",
+  "gap": 0.10,
+  "toc_do_cuoi": 1.15,
+  "anh_goc_giu_nhan_vat": "567788a4-3391-4b4f-b0e4-a18a3974cffd",
+  "thumbnail": {
+    "anh": "a01", "giay": 0.3,
+    "dong_tren": "HỆ THỐNG TUYỂN", "dong_chinh": "HÀNG TRĂM F1", "nhan_do": "TỰ ĐỘNG"
+  },
+  "anh_can_gen": {
+    "a01": "Standing proudly with a very large crowd of many tiny stick figures behind him, arms open wide, delighted smile",
+    "a02": "Holding a smartphone showing a contact list, a big bold red X crossing over the phone"
+  },
+  "nhip": [
+    {"anh": "a01", "doc": "Tôi có một trăm F một trong ba mươi ngày.", "phu_de": ["Tôi có *100 F1*", "trong *30 ngày*"]},
+    {"anh": "a02", "doc": "Mà không nhắn rủ một người quen nào.",      "phu_de": ["*không nhắn rủ* ai quen"]}
+  ]
+}

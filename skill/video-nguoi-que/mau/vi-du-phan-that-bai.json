@@ -1,0 +1,83 @@
+{
+ "ten": "that-bai-khong-phai-ket-thuc",
+ "phong_cach": "phan",
+ "chu_ky": "WSS",
+ "giong": "vi-VN-NamMinhNeural",
+ "rate": "+6%",
+ "gap": 0.1,
+ "toc_do_cuoi": 1.12,
+ "thumbnail": {
+  "anh": "a07",
+  "giay": 0.3,
+  "dong_tren": "THẤT BẠI",
+  "dong_chinh": "KHÔNG PHẢI",
+  "nhan_do": "KẾT THÚC"
+ },
+ "anh_can_gen": {
+  "a01": "fallen down on the ground next to a broken ladder, head down, sad and defeated, scattered papers around",
+  "a02": "sitting alone hugging knees inside a big dark cloud shape, thinking about giving up, a small door drawn faintly on the side",
+  "a03": "standing in front of a big chalk X mark on a signpost, looking at it calmly, hand on chin, learning from the mistake",
+  "a04": "kneeling down and picking up small scattered pieces from the ground, gathering them into a neat pile, lesson collected",
+  "a05": "slowly standing up on one knee, one hand pressing the ground, other fist raised, getting back up with effort",
+  "a06": "climbing a tall mountain path with several small fallen-and-risen footprints below, almost at the peak, determined",
+  "a07": "standing on top of a mountain peak with arms raised wide in victory, a big rising sun with radiant rays behind, sparkling chalk dust, triumphant"
+ },
+ "nhip": [
+  {
+   "anh": "a01",
+   "doc": "Ai cũng từng ngã. Không ai thành công mà chưa từng thất bại.",
+   "phu_de": [
+    "Ai cũng từng *NGÃ*",
+    "Không ai chưa từng *thất bại*"
+   ]
+  },
+  {
+   "anh": "a02",
+   "doc": "Khác biệt là bạn nằm đó bao lâu.",
+   "phu_de": [
+    "Khác biệt là",
+    "bạn *NẰM ĐÓ* bao lâu"
+   ]
+  },
+  {
+   "anh": "a03",
+   "doc": "Thất bại không phải kết thúc. Nó là dữ liệu.",
+   "phu_de": [
+    "Thất bại là",
+    "*DỮ LIỆU*"
+   ]
+  },
+  {
+   "anh": "a04",
+   "doc": "Nhặt bài học lên. Bỏ cảm giác xấu hổ xuống.",
+   "phu_de": [
+    "Nhặt *BÀI HỌC* lên",
+    "Bỏ xấu hổ xuống"
+   ]
+  },
+  {
+   "anh": "a05",
+   "doc": "Rồi đứng dậy. Lần này khôn hơn một chút.",
+   "phu_de": [
+    "Rồi *ĐỨNG DẬY*",
+    "Khôn hơn một chút"
+   ]
+  },
+  {
+   "anh": "a06",
+   "doc": "Người về đích không phải người không ngã. Là người ngã rồi vẫn đi.",
+   "phu_de": [
+    "Người về đích",
+    "*NGÃ RỒI VẪN ĐI*"
+   ]
+  },
+  {
+   "anh": "a07",
+   "doc": "Bạn chưa thua. Bạn chỉ chưa xong.",
+   "phu_de": [
+    "Bạn chưa thua.",
+    "Bạn chỉ *CHƯA XONG*"
+   ]
+  }
+ ]
+}
