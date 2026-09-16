@@ -34,8 +34,9 @@ R=$(curl -s --max-time 150 -X POST "http://127.0.0.1:$PORT/api/update")
 echo "update: $R"
 echo "$R" | grep -q '"ok": *true' || { echo "cập nhật lỗi → giữ bản cũ."; exit 0; }
 
-# khởi động lại để áp code mới
-pkill -f "$HERE/server.py" 2>/dev/null || true
+# khởi động lại để áp code mới — kill theo PORT (cmdline là './.venv/bin/python server.py'
+# đường TƯƠNG ĐỐI nên 'pkill -f "$HERE/server.py"' KHÔNG khớp → process cũ sống dai, code mới không nạp)
+lsof -ti tcp:"$PORT" 2>/dev/null | xargs kill 2>/dev/null || true
 sleep 2
 nohup bash "$HERE/run.sh" >"$HERE/run.log" 2>&1 &
 sleep 3
