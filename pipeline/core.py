@@ -43,12 +43,39 @@ def _ff_dur(p):
          "-of", "default=nw=1:nk=1", p]).decode().strip())
 
 
-def _gen_clip(flow_url, prompt, duration, out_path, timeout=280):
-    """Gọi flow-agent gen 1 clip Veo, tải về out_path. Trả (ok, msg)."""
+def _gen_clip(flow_url, prompt, duration, out_path, timeout=280, aspect="9:16"):
+    """Gọi flow-agent gen 1 clip Veo, tải về out_path. Trả (ok, msg). aspect 9:16|16:9."""
     body = json.dumps({"prompt": prompt, "duration": int(duration),
-                       "aspect": "portrait", "n": 1}).encode()
+                       "aspect": "landscape" if aspect == "16:9" else "portrait", "n": 1}).encode()
     req = urllib.request.Request(flow_url.rstrip("/") + "/v1/videos/generations",
                                  data=body, headers={"Content-Type": "application/json"})
+    return _fetch_media(flow_url, req, out_path, timeout)
+
+
+def _gen_image(flow_url, prompt, out_path, timeout=280, aspect="9:16"):
+    """[16/09] Gọi flow-agent gen 1 ẢNH (rẻ hơn clip Veo), tải về out_path. Trả (ok, msg)."""
+    body = json.dumps({"prompt": prompt, "n": 1,
+                       "size": "1920x1080" if aspect == "16:9" else "1080x1920"}).encode()
+    req = urllib.request.Request(flow_url.rstrip("/") + "/v1/images/generations",
+                                 data=body, headers={"Content-Type": "application/json"})
+    return _fetch_media(flow_url, req, out_path, timeout, min_size=20000)
+
+
+def _img_to_clip(img_path, out_path, duration, aspect="9:16"):
+    """[16/09] Ảnh tĩnh → clip mp4 (duration+1.5s, khung đúng aspect) để build_video2 zoom Ken Burns như clip Veo."""
+    W, H = (1920, 1080) if aspect == "16:9" else (1080, 1920)
+    try:
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-i", img_path,
+                        "-t", str(float(duration) + 1.5), "-r", "30",
+                        "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},format=yuv420p",
+                        "-c:v", "libx264", "-preset", "fast", "-crf", "18", out_path],
+                       check=True, capture_output=True, timeout=120)
+    except Exception as e:
+        return False, f"ảnh→clip lỗi: {str(e)[:140]}"
+    return True, "ok"
+
+
+def _fetch_media(flow_url, req, out_path, timeout, min_size=50000):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             res = json.load(r)
@@ -65,9 +92,20 @@ def _gen_clip(flow_url, prompt, duration, out_path, timeout=280):
             urllib.request.urlretrieve(flow_url.rstrip("/") + url, out_path)
     except Exception as e:
         return False, f"tải lỗi: {str(e)[:140]}"
-    if os.path.getsize(out_path) < 50000:
+    if os.path.getsize(out_path) < min_size:
         return False, "file quá nhỏ"
     return True, "ok"
+
+
+def _gen_visual(flow_url, prompt, duration, out_path, aspect="9:16", visual="video"):
+    """[16/09] 1 cảnh = clip Veo (visual=video) hoặc ảnh Flow → clip tĩnh (visual=image). Trả (ok, msg)."""
+    if visual != "image":
+        return _gen_clip(flow_url, prompt, duration, out_path, aspect=aspect)
+    img = out_path[:-4] + ".png"
+    ok, msg = _gen_image(flow_url, prompt, img, aspect=aspect)
+    if not ok:
+        return ok, msg
+    return _img_to_clip(img, out_path, duration, aspect)
 
 
 ZOOM_CYCLE = ["in", "out", "tight", "in", "out", "punch"]
@@ -75,12 +113,16 @@ ZOOM_CYCLE = ["in", "out", "tight", "in", "out", "punch"]
 
 def run(opts: dict, progress=lambda p, m: None) -> dict:
     """opts: script, style, voice, rate, gap, transition, zoom, duration, speed,
-    flow_agent_url, llm_cfg, job_dir, name. Trả {ok, out, scenes, source, error}."""
+    aspect (9:16|16:9), visual (video|image), flow_agent_url, llm_cfg, job_dir, name.
+    Trả {ok, out, scenes, source, error}."""
     job = opts["job_dir"]
     os.makedirs(job, exist_ok=True)
     style = opts.get("style", "phan")
     dur_each = int(opts.get("duration", 4))
     name = opts.get("name") or "video"
+    aspect = "16:9" if opts.get("aspect") == "16:9" else "9:16"       # [16/09] khung ra
+    visual = "image" if opts.get("visual") == "image" else "video"     # [16/09] nguồn hình mỗi cảnh
+    vtag = "ảnh" if visual == "image" else "Veo"
 
     # 1) enrich kịch bản → cảnh
     progress(3, "Phân tích kịch bản…")
@@ -135,22 +177,22 @@ def run(opts: dict, progress=lambda p, m: None) -> dict:
     total = n + n_broll                    # tổng clip để chia % (chính + B-roll)
     done = 0
     for i, sc in enumerate(scenes):
-        progress(15 + int(58 * done / max(1, total)), f"Gen cảnh {i+1}/{n} (Veo)…")
-        p = prompts.build_video_prompt(style, sc["hinh"])
+        progress(15 + int(58 * done / max(1, total)), f"Gen cảnh {i+1}/{n} ({vtag} {aspect})…")
+        p = prompts.build_video_prompt(style, sc["hinh"], aspect)
         out = os.path.join(job, f"clip{i+1}.mp4")
-        ok, msg = _gen_clip(flow, p, dur_each, out)
+        ok, msg = _gen_visual(flow, p, dur_each, out, aspect, visual)
         if not ok:
-            ok, msg = _gen_clip(flow, p, dur_each, out)  # retry 1 lần
+            ok, msg = _gen_visual(flow, p, dur_each, out, aspect, visual)  # retry 1 lần
         if not ok:
             return {"ok": False, "error": f"Cảnh {i+1} gen hỏng: {msg}", "scenes": scenes}
         clips.append(out); done += 1
         if sc.get("broll"):                # B-roll: gen clip phụ; LỖI thì bỏ qua (không hỏng video)
-            progress(15 + int(58 * done / max(1, total)), f"Gen B-roll cảnh {i+1} (Veo)…")
-            bp = prompts.build_video_prompt(style, sc["broll"])
+            progress(15 + int(58 * done / max(1, total)), f"Gen B-roll cảnh {i+1} ({vtag})…")
+            bp = prompts.build_video_prompt(style, sc["broll"], aspect)
             bout = os.path.join(job, f"broll{i+1}.mp4")
-            bok, _ = _gen_clip(flow, bp, dur_each, bout)
+            bok, _ = _gen_visual(flow, bp, dur_each, bout, aspect, visual)
             if not bok:
-                bok, _ = _gen_clip(flow, bp, dur_each, bout)
+                bok, _ = _gen_visual(flow, bp, dur_each, bout, aspect, visual)
             if bok:
                 broll_clips[i] = bout; done += 1
 
@@ -167,10 +209,11 @@ def run(opts: dict, progress=lambda p, m: None) -> dict:
         at = round(scene_start[i] + max(0.3, durs[i] * 0.25), 2)  # chèn ~1/4 sau khi vào cảnh
         broll_list.append({"clip": bclip, "at": at, "dur": bdur, "zoom": "in"})
     project = {
-        "out": os.path.join(job, f"{name}_9x16.mp4"),
+        "out": os.path.join(job, f"{name}_{'16x9' if aspect == '16:9' else '9x16'}.mp4"),
+        "aspect": aspect,
         "voice": os.path.join(job, "voice_tight.m4a"),
         "speed": float(opts.get("speed", 1.15)),
-        "delogo": True,
+        "delogo": visual == "video",       # ảnh Flow không có logo Veo góc phải
         "transition": {"type": opts.get("transition", "hardcut"), "dur": 0.25},
         "subs": {"style": prompts.SUB_STYLE.get(style, "phan")},
         "scenes": [
@@ -211,11 +254,11 @@ def run(opts: dict, progress=lambda p, m: None) -> dict:
         if opts.get("hook"):
             hk = os.path.join(job, "_hook.mp4")
             enrich_av.make_card_clip(opts["hook"], hk, style=style, dur=1.2,
-                                     sub=opts.get("hook_sub"), workdir=job); parts.append(hk)
+                                     sub=opts.get("hook_sub"), workdir=job, aspect=aspect); parts.append(hk)
         parts.append(out)
         if opts.get("cta"):
             ct = os.path.join(job, "_cta.mp4")
-            enrich_av.make_card_clip(opts["cta"], ct, style=style, dur=1.4, workdir=job); parts.append(ct)
+            enrich_av.make_card_clip(opts["cta"], ct, style=style, dur=1.4, workdir=job, aspect=aspect); parts.append(ct)
         if len(parts) > 1:
             full = os.path.join(job, "_full.mp4")
             enrich_av.concat_parts(parts, full); os.replace(full, out)

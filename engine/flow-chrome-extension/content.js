@@ -4,7 +4,7 @@
  */
 (function () {
   const s = document.createElement('script');
-  s.src = chrome.runtime.getURL('injected.js');
+  s.src = chrome.runtime.getURL('injected.js') + '?v=' + chrome.runtime.getManifest().version + '_wv16sep';   // [WEVIDEO 16/09] phá cache injected (reload extension KHÔNG tự làm mới resource này)
   s.onload = () => s.remove();
   (document.head || document.documentElement).appendChild(s);
 })();

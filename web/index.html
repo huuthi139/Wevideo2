@@ -46,6 +46,8 @@ Bạn không cần mua vàng hay dầu thật, chỉ cần dự đoán giá sẽ
     <div class="hint" id="llmHint"></div>
 
     <div class="grid">
+      <div><label>Khung hình</label><select id="aspect"><option value="9:16">9:16 dọc (Reels/Shorts)</option><option value="16:9">16:9 ngang (YouTube)</option></select></div>
+      <div><label>Nguồn hình</label><select id="visual"><option value="video">Video Veo (động)</option><option value="image">Ảnh Flow (tĩnh + zoom, rẻ credit)</option></select></div>
       <div><label>Phong cách</label><select id="style"><option value="phan">Phấn / bảng xanh</option><option value="trang">Mực đen / nền trắng</option></select></div>
       <div><label>Giọng</label><select id="voice"><option value="vi-VN-NamMinhNeural">Nam Minh (nam)</option><option value="vi-VN-HoaiMyNeural">Hoài My (nữ)</option></select></div>
       <div><label>Chuyển cảnh</label><select id="transition"><option value="hardcut">Hard cut (nhanh)</option><option value="dissolve">Dissolve</option><option value="fade">Fade</option><option value="slideleft">Slide</option><option value="circleopen">Circle</option></select></div>
@@ -115,6 +117,7 @@ async function checkHealth() {
 async function loadCfg(){ try{ const c=await (await fetch('/api/config')).json();
   $('#style').value=c.style; $('#voice').value=c.voice; $('#transition').value=c.transition;
   $('#zoom').value=c.zoom; $('#duration').value=String(c.duration); $('#speed').value=String(c.speed);
+  if(c.aspect) $('#aspect').value=c.aspect; if(c.visual) $('#visual').value=c.visual;
   $('#autobroll').checked=!!c.auto_broll; $('#sfx').checked=!!c.sfx;
   if(c.grade) $('#grade').value=c.grade; $('#music').value=c.music?'1':'0';
   $('#llmHint').textContent = c.llm ? 'LLM enrich: BẬT — tự sinh mô tả hình + phụ đề từ câu tiếng Việt.'
@@ -130,7 +133,8 @@ $('#go').onclick = async () => {
     transition:$('#transition').value, zoom:$('#zoom').value,
     duration:Number($('#duration').value), speed:Number($('#speed').value),
     auto_broll:$('#autobroll').checked, sfx:$('#sfx').checked,
-    grade:$('#grade').value, music:$('#music').value==='1', hook:$('#hook').value, cta:$('#cta').value };
+    grade:$('#grade').value, music:$('#music').value==='1', hook:$('#hook').value, cta:$('#cta').value,
+    aspect:$('#aspect').value, visual:$('#visual').value };
   let r;
   try { r = await (await fetch('/api/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json(); }
   catch(e){ $('#prog').innerHTML='<span class="err">Lỗi gọi server</span>'; $('#go').disabled=false; return; }

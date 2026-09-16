@@ -29,6 +29,7 @@ class ExtensionBridge:
 
     def __init__(self):
         self._ws = None
+        self._sockets: list = []   # [WEVIDEO 16/09] nhiều extension (đa profile Chrome) cùng nối
         self._pending: dict[str, asyncio.Future] = {}
         self._flow_key = None
         self._connected = asyncio.Event()
@@ -88,20 +89,23 @@ class ExtensionBridge:
             oldest = next(iter(self._req_meta))
             self._req_meta.pop(oldest, None)
 
-    async def send_message(self, msg):
-        if not self._ws:
+    async def send_message(self, msg, ws=None):
+        ws = ws or self._ws
+        if not ws:
             return
         try:
-            if hasattr(self._ws, "send_text"):
-                await self._ws.send_text(json.dumps(msg))
+            if hasattr(ws, "send_text"):
+                await ws.send_text(json.dumps(msg))
             else:
-                await self._ws.send(json.dumps(msg))
+                await ws.send(json.dumps(msg))
         except Exception as e:
             log.warning("Failed to send message: %s", e)
 
     async def handle_fastapi_ws(self, ws):
         self._ws = ws
-        log.info("Extension connected via FastAPI WebSocket!")
+        if ws not in self._sockets:
+            self._sockets.append(ws)
+        log.info("Extension connected via FastAPI WebSocket! (đang giữ %d kết nối)", len(self._sockets))
         self._connected.set()
 
         # Send callback config to extension
@@ -139,8 +143,13 @@ class ExtensionBridge:
         except Exception as e:
             log.warning("FastAPI WebSocket disconnected: %s", e)
         finally:
-            self._ws = None
-            self._connected.clear()
+            if ws in self._sockets:
+                self._sockets.remove(ws)
+            # chỉ đổi active khi CHÍNH socket này ngắt (socket khác ngắt không được xoá active)
+            if self._ws is ws:
+                self._ws = self._sockets[-1] if self._sockets else None
+            if not self._sockets:
+                self._connected.clear()
 
     async def start(self):
         """Start WS server and HTTP callback server."""
@@ -434,21 +443,19 @@ class ExtensionBridge:
         finally:
             self._pending.pop(req_id, None)
 
-    async def ui_generate(self, params: dict, timeout=None):
-        """[FLOW V2 11/09] Lái UI Flow v2 qua extension (WS method `ui_generate`).
+    # [WEVIDEO 16/09] Lỗi xảy ra TRƯỚC khi bấm gửi (0 credit) → an toàn để đổi sang extension khác.
+    _PRE_SUBMIT_ERR = ("NO_FLOW_PROJECT_TAB", "NO_FLOW_TAB", "PROMPT_BAR_NOT_READY",
+                       "NO_PROJECT_PAGE", "NO_SETTINGS_CHIP", "CONTENT_TIMEOUT",
+                       "PREP_TIMEOUT", "AGENT_MODE_ON", "TIMEOUT", "EXT_DISCONNECTED", "UI_GENERATE_TIMEOUT")
 
-        params: {prompt, aspect:'9:16'|'16:9', duration:4|6|8|10, dryRun, timeoutMs}.
-        Trả dict extension gửi về: {result:{mediaId, opId, videoUrl, credits, …}} hoặc
-        {error, code}. URL video → `media_urls[mediaId]`, credits → `last_credits`.
-        """
-        if not self._ws:
-            return {"error": "Extension not connected", "code": "EXT_DISCONNECTED"}
+    async def _ui_generate_one(self, ws, params: dict, timeout=None):
+        """1 lượt ui_generate trên MỘT socket cụ thể."""
         req_id = str(uuid.uuid4())
         future = self._loop.create_future()
         self._pending[req_id] = future
         self._remember_request(req_id, {"ui_generate": True,
                                         "prompt": str(params.get("prompt", ""))[:80]})
-        await self.send_message({"id": req_id, "method": "ui_generate", "params": params})
+        await self.send_message({"id": req_id, "method": "ui_generate", "params": params}, ws=ws)
         try:
             wait_s = timeout or (float(params.get("timeoutMs", 420000)) / 1000.0 + 30)
             result = await asyncio.wait_for(future, timeout=wait_s)
@@ -467,6 +474,54 @@ class ExtensionBridge:
                 self.last_credits = int(res["credits"])
                 self.last_credits_at = time.time()
         return result
+
+    async def probe_all_sockets(self, prompt="__VERSION__", timeout=30):
+        """[WEVIDEO 16/09 chẩn] Gửi 1 probe tới TỪNG socket, trả list kết quả để soi socket nào có tab + injected bản nào."""
+        import asyncio as _a
+        out = []
+        for i, ws in enumerate(list(self._sockets)):
+            try:
+                r = await self._ui_generate_one(ws, {"prompt": prompt, "aspect": "portrait",
+                                                     "duration": 4, "dryRun": True, "timeoutMs": timeout * 1000}, timeout=timeout + 5)
+            except Exception as e:
+                r = {"error": str(e), "code": "PROBE_EXC"}
+            res = r.get("result") if isinstance(r, dict) else None
+            out.append({"i": i, "active": ws is self._ws,
+                        "error": r.get("error") if isinstance(r, dict) else str(r),
+                        "code": r.get("code") if isinstance(r, dict) else None,
+                        "chipText": (res or {}).get("chipText") if isinstance(res, dict) else None,
+                        "dryRun": (res or {}).get("dryRun") if isinstance(res, dict) else None})
+        return out
+
+    async def ui_generate(self, params: dict, timeout=None):
+        """[FLOW V2 11/09] Lái UI Flow v2 qua extension (WS method `ui_generate`).
+
+        [WEVIDEO 16/09] Nhiều extension (đa profile Chrome) có thể cùng nối; engine không biết
+        cái nào có tab flow.google.com/project. Thử socket ĐANG active trước, nếu trả lỗi PRE-SUBMIT
+        (chưa tốn credit) thì thử các socket còn lại; socket nào chạy được thì nhớ làm active.
+        """
+        sockets = [self._ws] + [w for w in self._sockets if w is not self._ws]
+        sockets = [w for w in sockets if w is not None]
+        if not sockets:
+            return {"error": "Extension not connected", "code": "EXT_DISCONNECTED"}
+        last = None
+        for i, ws in enumerate(sockets):
+            result = await self._ui_generate_one(ws, params, timeout)
+            code = (result or {}).get("code") or ""
+            err = (result or {}).get("error") or ""
+            ok = not (result or {}).get("error")
+            if ok:
+                if self._ws is not ws:
+                    self._ws = ws
+                    log.info("ui_generate: chuyển sang extension #%d (có tab project)", i + 1)
+                return result
+            last = result
+            # lỗi PRE-SUBMIT + còn socket khác → thử tiếp; lỗi khác (có thể đã submit) → dừng ngay
+            pre = any(c in (code + " " + err) for c in self._PRE_SUBMIT_ERR)
+            if not pre or i == len(sockets) - 1:
+                return result
+            log.info("ui_generate: extension #%d lỗi PRE-SUBMIT (%s) → thử extension khác", i + 1, code or err[:40])
+        return last
 
     def _start_http_server(self):
         """Start HTTP server for extension callbacks (runs in thread)."""

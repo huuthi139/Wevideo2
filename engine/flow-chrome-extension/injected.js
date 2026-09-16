@@ -344,6 +344,52 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
       || btns.find((b) => /(giây|\bx[1-4]\b|video|hình ảnh|nano|omni|16:9|9:16|720p|360p|crop_)/i.test(textOf(b))) || null;
   }
   const chipText = () => { const c = chipBtn(); return c ? norm(c.innerText) : ''; };
+
+  // [WEVIDEO 16/09] Composer Flow mới có chip "tác nhân" (agent mode): prompt đi qua Gemini agent → vẽ
+  // storyboard trước, xếp hàng video, tự chọn 10s → driver hỏng. Khi agent BẬT, chip cài đặt không còn
+  // text chế độ ("video · 720p · 8 giây x1") → nhận diện bằng đó rồi bấm nút "tác nhân" để tắt.
+  const RE_CHIP_MODE = /(giây|\bx[1-4]\b|video|hình ảnh|image|16:9|9:16|720p|360p)/i;
+  const agentOn = () => { const c = chipBtn(); return !(c && RE_CHIP_MODE.test(textOf(c))); };
+  const agentBtn = () => {
+    const { form } = promptForm();
+    const all = $$('button,[role="button"]', form || document).filter(visible);
+    return all.find((b) => /^(tác nhân|agent)$/i.test(labelOf(b)))
+      || all.find((b) => /tác nhân|agent/i.test((b.getAttribute('aria-label') || '') + ' ' + labelOf(b)) && !/chỉ dẫn|instruction/i.test(b.getAttribute('aria-label') || '')) || null;
+  };
+  async function ensureAgentOff() {
+    for (let a = 0; a < 3 && agentOn(); a++) {
+      const b = agentBtn(); if (!b) break;
+      realClick(b); await waitFor(() => !agentOn(), 5000);
+    }
+    return !agentOn();
+  }
+  // [WEVIDEO 16/09] Cài đặt composer MỚI qua popover radio: chế độ (hình ảnh|video) → tỉ lệ (16:9|9:16)
+  // → thời lượng (N giây, chỉ video) → x1. Trả {chip, set} để engine kiểm/log. Gọi TRƯỚC khi gõ prompt
+  // (đổi cài đặt làm composer re-render → gõ sau mới an toàn).
+  async function applySettings2(kind, aspect, duration) {
+    await openPopover();
+    const lab = (b) => norm(labelOf(b));
+    const radios = () => $$('[role="radio"]').filter(visible);
+    const isChk = (b) => !!b && (b.getAttribute('aria-checked') === 'true' || b.getAttribute('aria-selected') === 'true');
+    const lastBy = (re) => { const m = radios().filter((b) => re.test(lab(b))); return m[m.length - 1] || null; };
+    const pick = async (re, tag) => {
+      let b = lastBy(re); if (!b) return tag + '=KHÔNG THẤY';
+      if (!isChk(b)) { realClick(b); await sleep(600); b = lastBy(re) || b; }
+      return tag + '=' + lab(b) + (isChk(b) ? '✓' : '?');
+    };
+    const set = [];
+    set.push(await pick(kind === 'image' ? /^(hình ảnh|image)$/i : /^video$/i, 'mode'));
+    if (!(await waitFor(isOpen, 2500))) await openPopover();   // đổi chế độ → popover re-render
+    set.push(await pick(aspect === '16:9' ? /^16:9$/ : /^9:16$/, 'asp'));
+    if (kind !== 'image') {
+      const dsec = [4, 6, 8, 10].includes(Number(duration)) ? Number(duration) : 8;
+      set.push(await pick(new RegExp('^' + dsec + '\\s*(giây|s|sec)'), 'dur'));
+    }
+    set.push(await pick(/^x1$/i, 'n'));
+    const save = $$('button').find((b) => visible(b) && /^(lưu|save)$/i.test(norm(labelOf(b))));
+    if (save) { realClick(save); await sleep(600); } else { pressEsc(); await sleep(300); await closePopover(); }
+    return { chip: chipText(), set: set.join(' ') };
+  }
   // Popover = tổ tiên gần nhất của nút "x1" có chứa cả tab "video" lẫn nút "N giây"
   function popoverRoot() {
     const x1 = $$('button,[role="tab"],[role="option"]').find((b) => visible(b) && /^x1$/i.test(textOf(b)));
@@ -586,6 +632,10 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
     const requestId = d.requestId;
     const reply = (x) => window.dispatchEvent(new CustomEvent('FLOW_UI_GENERATE_RESULT', { detail: Object.assign({ requestId }, x) }));
     try {
+      if (String(d.prompt).trim() === '__VERSION__') {   // [WEVIDEO 16/09] bản injected đang chạy + tab (0 credit, dùng kèm dry_run)
+        reply({ error: 'VERSION v=wevideo-16sep-1 url=' + location.pathname + ' agentOn=' + agentOn() + ' chip=' + chipText(), code: 'VERSION' });
+        return;
+      }
       if (String(d.prompt).trim() === '__TESTPING__') {   // test round-trip injected↔background (không debugger)
         const r = await requestTextInsert('__PING__');
         reply({ error: 'PING ' + JSON.stringify(r), code: 'PING' });
@@ -733,6 +783,9 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
       // của account (model omni 1.1 flash + video 9:16 + x1 — đã xác nhận qua dump).
       if (d.phase === 'prep') {
         await waitFor(() => promptForm().sub, 8000);
+        // [WEVIDEO 16/09] tắt agent mode + áp cài đặt (chế độ/tỉ lệ/thời lượng) TRƯỚC khi focus & gõ prompt
+        if (!(await ensureAgentOff())) throw mkErr('AGENT_MODE_ON', 'chip "tác nhân" đang bật, không tắt được — ' + barDiag());
+        D.lastSettings = await applySettings2(d.kind, d.aspect, d.duration);
         const el = editorEl(); if (!el) throw mkErr('NO_EDITOR', 'không thấy ô prompt');
         el.focus(); await sleep(150); await clearEditor(); el.focus(); await sleep(150); putCaret(el);
         reply({ ready: true, projectId: pid });
@@ -744,9 +797,12 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
         const sub = await waitFor(() => { const s = promptForm().sub; return s && !s.disabled ? s : null; }, 6000);
         if (!sub) throw mkErr('SUBMIT_DISABLED', 'nút gửi không bấm được (editor="' + txt.slice(0, 40) + '")');
         if (!txt) throw mkErr('EMPTY_PROMPT', 'ô soạn RỖNG lúc gửi — prompt chưa vào');
+        const stg = D.lastSettings || {};
+        // [WEVIDEO 16/09] dryRun: KHÔNG bấm gửi (trước đây pha submit bỏ qua dryRun → tốn credit thật)
+        if (d.dryRun) { await clearEditor(); reply({ dryRun: true, promptOk: true, editorText: txt.slice(0, 50), chipText: stg.chip, settings: stg.set, projectId: pid, credits: D.lastCredits }); return; }
         sub.click();
         await sleep(4000);   // [OMNI] để submit đăng ký + gen bắt đầu; ENGINE sẽ chờ URL video mới
-        reply({ submitted: true, projectId: pid, editorText: txt.slice(0, 50) });
+        reply({ submitted: true, projectId: pid, editorText: txt.slice(0, 50), chipText: stg.chip, settings: stg.set });
         return;
       }
 

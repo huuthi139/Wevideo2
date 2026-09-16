@@ -90,6 +90,8 @@ def _defaults():
         "grade": ENV.get("GRADE", "none"),
         "music": ENV.get("MUSIC", "off").lower() in ("on", "true", "1"),
         "music_gain": float(ENV.get("MUSIC_GAIN", "0.12")),
+        "aspect": "16:9" if ENV.get("ASPECT", "9:16").strip() == "16:9" else "9:16",
+        "visual": "image" if ENV.get("VISUAL", "video").strip().lower() == "image" else "video",
     }
 
 
@@ -153,6 +155,8 @@ async def api_create(req: Request):
         "cta": (body.get("cta") or "").strip() or None,
         "music": bool(body.get("music", d["music"])),
         "music_gain": float(body.get("music_gain", d["music_gain"])),
+        "aspect": "16:9" if str(body.get("aspect", d["aspect"])) == "16:9" else "9:16",
+        "visual": "image" if str(body.get("visual", d["visual"])).lower() == "image" else "video",
         "flow_agent_url": FLOW_URL,
         "llm_cfg": _llm_cfg(),
     }
@@ -183,6 +187,7 @@ def api_progress(job_id: str):
         return JSONResponse({"error": "job không tồn tại"}, status_code=404)
     out = {k: j.get(k) for k in ("pct", "msg", "done", "ok", "error", "duration", "source")}
     out["video_url"] = f"/api/video/{job_id}" if j.get("ok") else None
+    out["video_path"] = j.get("video") if j.get("ok") else None   # đường dẫn file (tên theo 9x16/16x9)
     return out
 
 

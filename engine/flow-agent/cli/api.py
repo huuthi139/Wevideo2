@@ -138,6 +138,13 @@ async def _media_urls():
     return {"n_video": len(vids), "video_ids": list(vids.keys()), "video_urls": list(vids.values())}
 
 
+@app.get("/v2/pick")
+async def _v2_pick():
+    """[WEVIDEO 16/09 chẩn] Soi từng socket extension: cái nào có tab project + injected bản nào (0 credit)."""
+    b = await get_active_bridge()
+    return {"n_sockets": len(getattr(b, "_sockets", [])), "probes": await b.probe_all_sockets()}
+
+
 @app.post("/v2/play_tile")
 async def _play_tile():
     """Click tile video mới nhất trên gallery → Flow fetch URL /video/ (injected bắt vào media_urls)."""

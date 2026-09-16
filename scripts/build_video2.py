@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""build_video2.py — Dựng video 9:16 CÓ zoom Ken Burns + FX chuyển cảnh + B-roll cutaway.
+"""build_video2.py — Dựng video 9:16 (hoặc 16:9 qua "aspect") CÓ zoom Ken Burns + FX chuyển cảnh + B-roll cutaway.
 
 Nâng cấp build_video: mọi thứ khai báo trong project.json (không sửa code cho từng video).
 
@@ -9,6 +9,7 @@ project.json (các khoá; thiếu thì mặc định):
 {
   "out": "ten_9x16.mp4",
   "voice": "voice_tight.m4a",           # track giọng (bắt buộc để lồng tiếng)
+  "aspect": "9:16",                      # 9:16 → 1080x1920 (mặc định) · 16:9 → 1920x1080 (delogo/phụ đề tự theo)
   "speed": 1.15,                         # tăng tốc xuất bản (setpts+atempo); 1.0 = không
   "delogo": true,                        # xoá logo Veo góc phải-dưới (clip 720x1280)
   "transition": {"type": "hardcut", "dur": 0.25},  # type: hardcut|fade|dissolve|slideleft|
@@ -31,17 +32,31 @@ Nguyên tắc đồng bộ: cảnh xếp theo mốc giọng (dur = độ dài c�
 import json, os, subprocess, sys
 
 W, H, FPS = 1080, 1920, 30
-DELOGO = "delogo=x=560:y=1095:w=112:h=112"   # logo Veo trên clip GỐC 720x1280 (xoá TRƯỚC upscale)
+# Logo Veo trên clip GỐC (xoá TRƯỚC upscale): 9:16 = clip 720x1280 · 16:9 = clip 1280x720 (đo thật: sao ~x1160,y598)
+_DELOGO = {"9:16": "delogo=x=560:y=1095:w=112:h=112", "16:9": "delogo=x=1120:y=555:w=90:h=90"}
+DELOGO = _DELOGO["9:16"]
 # Zoom Ken Burns cho VIDEO bằng zoompan (output CỐ ĐỊNH s=WxH; crop động làm x264 fail vì khung đổi cỡ).
-# {F} = tổng số frame của cảnh; on = frame đầu ra. Đặt SAU scale=1080x1920 + fps.
-_ZP = ":d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=%dx%d:fps=%d" % (W, H, FPS)
-ZOOM = {
-    "in":    "zoompan=z='min(1.0+0.06*on/{F},1.06)'" + _ZP,
-    "out":   "zoompan=z='max(1.06-0.06*on/{F},1.0)'" + _ZP,
-    "tight": "zoompan=z='min(1.10+0.06*on/{F},1.16)'" + _ZP,
-    "punch": "zoompan=z='min(1.0+0.13*on/{F},1.13)'" + _ZP,
-    "none":  None,
-}
+# {F} = tổng số frame của cảnh; on = frame đầu ra. Đặt SAU scale=WxH + fps.
+ZOOM = {}
+
+
+def set_aspect(aspect):
+    """[16/09] Khung ra theo aspect: 9:16 → 1080x1920 (mặc định) · 16:9 → 1920x1080. Gọi trước render."""
+    global W, H, DELOGO, ZOOM
+    W, H = (1920, 1080) if aspect == "16:9" else (1080, 1920)
+    DELOGO = _DELOGO.get(aspect, _DELOGO["9:16"])
+    zp = ":d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=%dx%d:fps=%d" % (W, H, FPS)
+    ZOOM.clear()
+    ZOOM.update({
+        "in":    "zoompan=z='min(1.0+0.06*on/{F},1.06)'" + zp,
+        "out":   "zoompan=z='max(1.06-0.06*on/{F},1.0)'" + zp,
+        "tight": "zoompan=z='min(1.10+0.06*on/{F},1.16)'" + zp,
+        "punch": "zoompan=z='min(1.0+0.13*on/{F},1.13)'" + zp,
+        "none":  None,
+    })
+
+
+set_aspect("9:16")
 # xfade transition hợp lệ của ffmpeg (subset hữu dụng); "hardcut" xử lý riêng (concat).
 XFADE = {"fade", "dissolve", "slideleft", "slideright", "slideup", "slidedown",
          "wipeleft", "wiperight", "circleopen", "circleclose", "zoomin", "smoothleft", "fadeblack"}
@@ -122,6 +137,7 @@ def main(cfg_path):
     os.chdir(base_dir)
     scenes = cfg["scenes"]
     n = len(scenes)
+    set_aspect(cfg.get("aspect", "9:16"))
     delogo = cfg.get("delogo", True)
     tr = cfg.get("transition", {}) or {}
     tr_type = tr.get("type", "hardcut")
@@ -183,8 +199,10 @@ def main(cfg_path):
     if have_subs:
         style = (cfg.get("subs", {}) or {}).get("style", "phan")
         fill, stroke = SUB_COLORS.get(style, SUB_COLORS["phan"])
-        proj = {"subs_dir": os.path.abspath("_subs2"), "center_y": 1500, "font_size": 66,
-                "big_ratio": 1.5, "max_text_w": 980, "fill": fill, "stroke": stroke,
+        # phụ đề: 9:16 đặt ở 1500/1920 rộng 980 · 16:9 đặt ở 900/1080 rộng 1700 (cùng tỉ lệ vị trí)
+        proj = {"subs_dir": os.path.abspath("_subs2"), "w": W, "h": H,
+                "center_y": (900 if H == 1080 else 1500), "font_size": 66,
+                "big_ratio": 1.5, "max_text_w": (1700 if W == 1920 else 980), "fill": fill, "stroke": stroke,
                 "cues": [{"lines": sc.get("sub") or [""]} for sc in scenes]}
         os.makedirs("_subs2", exist_ok=True)
         json.dump(proj, open("_subs2.json", "w", encoding="utf-8"), ensure_ascii=False)
@@ -219,7 +237,7 @@ def main(cfg_path):
     ff(*args)
 
     # ── 6) xuất bản tăng tốc ──
-    out = cfg.get("out", "output_9x16.mp4")
+    out = cfg.get("out", "output_16x9.mp4" if W == 1920 else "output_9x16.mp4")
     speed = float(cfg.get("speed", 1.15))
     if abs(speed - 1.0) < 1e-3:
         os.replace("_1x.mp4", out)

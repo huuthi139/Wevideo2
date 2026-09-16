@@ -62,7 +62,8 @@ Sửa ở đây, không sửa code: cổng app, URL flow-agent, giọng, phong c
 
 - Gen clip Veo tốn credit gói Flow (~7–12 credit/clip tuỳ độ dài). Giọng/phụ đề/ráp **miễn phí**.
 - ffmpeg máy này không có drawtext → phụ đề đi đường PNG overlay (`make_subs_v2.py`) — đã lo sẵn.
-- Video ra ở `projects/<job_id>/<job_id>_9x16.mp4`.
+- Video ra ở `projects/<job_id>/<job_id>_9x16.mp4` (chọn 16:9 → `_16x9.mp4`).
+- **Khung hình** 9:16 dọc hoặc 16:9 ngang; **Nguồn hình** mỗi cảnh = clip Veo (động, ~7 credit/cảnh) hoặc ảnh Flow (tĩnh + zoom Ken Burns, rẻ hơn). Mặc định trong `config.env` (`ASPECT`, `VISUAL`).
 
 ## Cho AI agent điều khiển (MCP) — vd Hermes
 
@@ -81,7 +82,7 @@ Cấu hình vào MCP client (mẫu: `hermes-mcp-config.json`, sửa `<HOME>`):
 |---|---|
 | `app_health()` | Kiểm engine sẵn sàng chưa (gọi trước) |
 | `list_options()` | Giá trị hợp lệ + mặc định + cách viết kịch bản |
-| `create_video(script, style?, voice?, transition?, zoom?, duration?, speed?, wait=true)` | Tạo video; `wait=true` trả `video_path` (file mp4 trên máy); `wait=false` trả `job_id` |
+| `create_video(script, style?, voice?, transition?, zoom?, duration?, speed?, aspect?, visual?, wait=true)` | Tạo video; `wait=true` trả `video_path` (file mp4 trên máy); `wait=false` trả `job_id` |
 | `video_status(job_id)` | Tiến độ khi `wait=false` |
 
 > REST API thuần (không MCP) vẫn dùng được: `POST /api/create` · `GET /api/progress/{id}` · `GET /api/video/{id}` · `GET /api/health` · `GET /api/config`.

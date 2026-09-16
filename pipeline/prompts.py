@@ -27,9 +27,11 @@ CAM = "no text, no words, no letters, no numbers"
 SUB_STYLE = {"phan": "phan", "trang": "trang"}
 
 
-def build_video_prompt(style: str, hinh: str) -> str:
-    """Ghép prompt HÌNH hoàn chỉnh gửi Veo."""
+def build_video_prompt(style: str, hinh: str, aspect: str = "9:16") -> str:
+    """Ghép prompt HÌNH hoàn chỉnh gửi Veo/Flow. aspect 16:9 → đổi cụm 'vertical 9:16'."""
     nen = STYLE_NEN.get(style, STYLE_NEN["phan"])
+    if aspect == "16:9":
+        nen = nen.replace("vertical 9:16", "horizontal 16:9")
     return f"{nen}, {CAM} — {hinh.strip()}"
 
 

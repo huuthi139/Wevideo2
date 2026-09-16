@@ -49,7 +49,10 @@ def _post(path, body, timeout=15):
         return json.load(r)
 
 
-def _video_path(job):
+def _video_path(job, p=None):
+    # [16/09] server trả video_path (tên _9x16 hoặc _16x9); fallback tên 9:16 cũ
+    if p and p.get("video_path"):
+        return p["video_path"]
     return os.path.join(HERE, "projects", job, f"{job}_9x16.mp4")
 
 
@@ -78,6 +81,8 @@ def list_options() -> dict:
         "zoom": ["auto", "none", "in"],
         "duration": [4, 6, 8],
         "speed": [1.0, 1.1, 1.15],
+        "aspect": ["9:16", "16:9"],
+        "visual": ["video", "image"],
         "defaults": cfg,
         "script_note": ("Mỗi dòng = 1 câu ĐỌC (tiếng Việt thuần). Kiểm soát hình: khối mỗi cảnh cách "
                         "nhau 1 dòng trống, gồm 'doc:' (lời đọc) 'hinh:' (mô tả hình tiếng Anh cho Veo) "
@@ -90,16 +95,19 @@ def list_options() -> dict:
 def create_video(script: str, style: Optional[str] = None, voice: Optional[str] = None,
                  transition: Optional[str] = None, zoom: Optional[str] = None,
                  duration: Optional[int] = None, speed: Optional[float] = None,
+                 aspect: Optional[str] = None, visual: Optional[str] = None,
                  wait: bool = True, timeout_s: int = 600) -> dict:
-    """Tạo video 9:16 từ kịch bản tiếng Việt (giọng + phụ đề kinetic + clip Veo + ráp).
+    """Tạo video từ kịch bản tiếng Việt (giọng + phụ đề kinetic + hình mỗi cảnh + ráp).
 
     script: kịch bản (xem list_options.script_note). Tham số None = dùng mặc định app.
+    aspect: "9:16" (dọc, mặc định) | "16:9" (ngang). visual: "video" (clip Veo động) | "image" (ảnh Flow tĩnh + zoom, rẻ credit hơn).
     wait=True: chờ xong, trả video_path (file mp4 trên máy) + video_url. Tốn ~7 credit/cảnh, mất 1-3 phút/cảnh.
     wait=False: trả job_id ngay, tự theo dõi bằng video_status(job_id) — nên dùng khi client MCP có timeout ngắn.
     """
     body = {"script": script}
     for k, v in (("style", style), ("voice", voice), ("transition", transition),
-                 ("zoom", zoom), ("duration", duration), ("speed", speed)):
+                 ("zoom", zoom), ("duration", duration), ("speed", speed),
+                 ("aspect", aspect), ("visual", visual)):
         if v is not None:
             body[k] = v
     try:
@@ -119,7 +127,7 @@ def create_video(script: str, style: Optional[str] = None, voice: Optional[str] 
             time.sleep(3); continue
         if p.get("done"):
             if p.get("ok"):
-                return {"ok": True, "job_id": job, "video_path": _video_path(job),
+                return {"ok": True, "job_id": job, "video_path": _video_path(job, p),
                         "video_url": APP_URL + (p.get("video_url") or ""),
                         "duration": p.get("duration"), "source": p.get("source")}
             return {"ok": False, "job_id": job, "error": p.get("error", "lỗi")}
@@ -137,7 +145,7 @@ def video_status(job_id: str) -> dict:
     except Exception as e:
         return {"error": f"Không lấy được tiến độ ({e})."}
     if p.get("done") and p.get("ok"):
-        p["video_path"] = _video_path(job_id)
+        p["video_path"] = _video_path(job_id, p)
         if p.get("video_url"):
             p["video_url"] = APP_URL + p["video_url"]
     return p

@@ -79,9 +79,9 @@ _CARD_BG = {"phan": (18, 42, 30), "trang": (245, 245, 245)}
 _CARD_FG = {"phan": (235, 255, 130), "trang": (20, 20, 20)}
 
 
-def _render_card(text, out_png, style="phan", sub=None):
+def _render_card(text, out_png, style="phan", sub=None, aspect="9:16"):
     from PIL import Image, ImageDraw, ImageFont
-    W, H = 1080, 1920
+    W, H = (1920, 1080) if aspect == "16:9" else (1080, 1920)
     bg = _CARD_BG.get(style, _CARD_BG["phan"])
     fg = _CARD_FG.get(style, _CARD_FG["phan"])
     img = Image.new("RGB", (W, H), bg)
@@ -122,12 +122,13 @@ def _render_card(text, out_png, style="phan", sub=None):
     img.save(out_png)
 
 
-def make_card_clip(text, out_mp4, style="phan", dur=1.2, sub=None, workdir="."):
-    """Thẻ tĩnh 1080x1920 (im lặng) dur giây — để nối đầu (hook) hoặc cuối (CTA)."""
+def make_card_clip(text, out_mp4, style="phan", dur=1.2, sub=None, workdir=".", aspect="9:16"):
+    """Thẻ tĩnh full-frame (im lặng) dur giây — để nối đầu (hook) hoặc cuối (CTA). aspect 9:16|16:9."""
     png = os.path.join(workdir, "_card.png")
-    _render_card(text, png, style, sub)
+    _render_card(text, png, style, sub, aspect)
+    W, H = (1920, 1080) if aspect == "16:9" else (1080, 1920)
     _ff("-loop", "1", "-i", png, "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-        "-t", str(dur), "-vf", "scale=1080:1920,fps=30,format=yuv420p",
+        "-t", str(dur), "-vf", f"scale={W}:{H},fps=30,format=yuv420p",
         "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", out_mp4)
     try:

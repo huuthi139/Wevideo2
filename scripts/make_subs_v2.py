@@ -19,7 +19,7 @@ out_dir = cfg.get("subs_dir") or os.path.dirname(os.path.abspath(cfg_path))
 os.makedirs(out_dir, exist_ok=True)
 
 cues = cfg["cues"]
-W, H = 1080, 1920
+W, H = int(cfg.get("w", 1080)), int(cfg.get("h", 1920))   # [16/09] 16:9 → 1920x1080
 FONT = cfg.get("font", "/System/Library/Fonts/Supplemental/Arial Bold.ttf")
 FILL = tuple(cfg.get("fill", [235, 255, 130, 255]))
 STROKE = tuple(cfg.get("stroke", [20, 28, 12, 255]))
