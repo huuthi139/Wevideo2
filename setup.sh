@@ -30,6 +30,8 @@ if [ -f "$ENGINE/pyproject.toml" ]; then
   "$PY" -m venv "$ENGINE/.venv"
   "$ENGINE/.venv/bin/pip" install -q --upgrade pip
   ( cd "$ENGINE" && ./.venv/bin/pip install -q -e . )   # editable: package ở tại chỗ → tìm thấy config.env
+  # [16/09] tạo config.env engine từ mẫu nếu máy chưa có (clone/installer sạch không kèm id máy build)
+  [ -f "$ENGINE/config.env" ] || { [ -f "$ENGINE/config.env.example" ] && cp "$ENGINE/config.env.example" "$ENGINE/config.env" && echo "   → tạo engine/config.env từ mẫu (sửa DEFAULT_PROJECT nếu cần)"; }
   "$ENGINE/.venv/bin/flow" serve --help >/dev/null 2>&1 && echo "   ok: engine sẵn sàng ($ENGINE/.venv/bin/flow)" \
     || { echo "   ✗ engine cài lỗi"; MISS=1; }
 else

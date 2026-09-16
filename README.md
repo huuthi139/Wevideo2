@@ -34,6 +34,16 @@ Kiểm: `curl -s http://127.0.0.1:8001/health` có `"extension_connected":true`.
 
 **Cài extension RIÊNG (máy chưa nạp được):** `bash build_ext_installer.sh` → `dist/WeVideo-Extension-Installer.command`. Copy file này sang máy đích, double-click: nó tự giải nén extension + mở `chrome://extensions` + hiện Finder + copy path vào clipboard. Còn đúng 1 việc tay (Chrome bắt buộc): bật *Developer mode* rồi **kéo-thả** thư mục `flow-chrome-extension` vào trang. Máy đã có app thì file tự trỏ vào extension của app (khỏi tạo bản trùng).
 
+## Nhân bản sang iMac mới
+
+```bash
+git clone https://github.com/huuthi139/Wevideo2.git ~/WeVideo-App
+cd ~/WeVideo-App && bash setup.sh && bash run.sh
+```
+`setup.sh` tự tạo `engine/flow-agent/config.env` từ `config.env.example` (không kèm id máy khác). Còn 2 việc TAY trên iMac: (1) `chrome://extensions` → *Tải tiện ích đã giải nén* → thư mục `engine/flow-chrome-extension`; (2) mở 1 tab `flow.google.com` đã đăng nhập (tài khoản có credit Flow). Máy đang chạy tự cập nhật từ GitHub, không phải làm lại.
+
+Hoặc dùng bản cài 1 file: `bash build_installer.sh` (máy build) → `dist/WeVideo-Installer.command` → copy sang iMac, double-click.
+
 ## Chạy
 
 ```bash

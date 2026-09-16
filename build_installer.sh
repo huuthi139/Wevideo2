@@ -16,8 +16,9 @@ mkdir -p dist
 # ── engine từ BRANCH (git archive = chỉ file đã COMMIT của branch; không lẫn venv/output/bak/working-tree drift) ──
 ENGINE_BRANCH="${WEVIDEO_ENGINE_BRANCH:-flow-v2-ui-transport}"
 [ -d "$ENGINE_SRC/flow-agent" ] || { echo "✗ Không thấy engine tại $ENGINE_SRC (đặt WEVIDEO_ENGINE_SRC=...)"; exit 1; }
-rm -rf engine && mkdir -p engine
-if git -C "$ENGINE_SRC" rev-parse --verify -q "$ENGINE_BRANCH" >/dev/null; then
+if [ "${WEVIDEO_KEEP_ENGINE:-0}" = "1" ] && [ -d engine/flow-agent ] && [ -d engine/flow-chrome-extension ]; then
+  echo "→ engine: GIỮ bản đã vendored trong repo (WEVIDEO_KEEP_ENGINE=1): $(du -sh engine | cut -f1)"
+elif rm -rf engine && mkdir -p engine && git -C "$ENGINE_SRC" rev-parse --verify -q "$ENGINE_BRANCH" >/dev/null; then
   git -C "$ENGINE_SRC" archive --format=tar "$ENGINE_BRANCH" -- flow-agent flow-chrome-extension | tar -x -C engine
   ENG_COMMIT=$(git -C "$ENGINE_SRC" rev-parse --short "$ENGINE_BRANCH")
   echo "→ engine từ branch '$ENGINE_BRANCH' @ $ENG_COMMIT: $(du -sh engine | cut -f1)"
@@ -37,6 +38,7 @@ echo "$APP_SHA" > "$APP/VERSION"
 TAR="$(mktemp -t wevideo).tar.gz"
 tar --exclude='.venv' --exclude='projects' --exclude='__pycache__' --exclude='*.pyc' \
     --exclude='.git' --exclude='dist' --exclude='*.bak-*' --exclude='output' \
+    --exclude='engine/flow-agent/config.env' \
     --exclude='*.egg-info' --exclude='*.log' \
     -czf "$TAR" -C "$(dirname "$APP")" "$(basename "$APP")"
 PAYLOAD=$(du -h "$TAR" | cut -f1)
