@@ -3,6 +3,9 @@
 set -e
 cd "$(dirname "$0")"
 HERE="$(pwd)"
+# PATH cho tiến trình con: server.py/pipeline gọi ffmpeg trần khi ráp video. Chạy headless
+# (launchd/ssh) PATH chỉ có /usr/bin:/bin — Homebrew ở /opt/homebrew/bin không được nạp → ffmpeg not found.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 [ -x ./.venv/bin/python ] || { echo "Chưa cài. Chạy trước:  bash setup.sh"; exit 1; }
 PORT=$(grep -E '^APP_PORT=' config.env | cut -d= -f2- | tr -d "\"'" ); PORT=${PORT:-8080}
 FLOW=$(grep -E '^FLOW_AGENT_URL=' config.env | cut -d= -f2- | tr -d "\"'" ); FLOW=${FLOW:-http://127.0.0.1:8001}
