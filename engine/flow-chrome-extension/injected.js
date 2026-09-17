@@ -203,7 +203,7 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
 // poll=`jwpduf([[opId]])` (không mang URL), credits=`nzlxg` (RES [credits,…]).
 (() => {
   if (window.__flowAgentDriver) return;
-  const D = { listeners: new Set(), lastCredits: null, ver: 'charref-2' };  // [17/09] media_id ref + animate + animate-duration
+  const D = { listeners: new Set(), lastCredits: null, ver: 'charref-3' };  // [17/09] media_id ref + animate + animate duration/aspect
   window.__flowAgentDriver = D;
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -939,19 +939,23 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
         if (d.animateFrom) {
           const an = await animateImageByRef(d.animateFrom);
           if (!an.ok) throw mkErr('ANIMATE_FAIL', 'Tạo ảnh động (media_id=' + d.animateFrom + ') thất bại: ' + an.error);
-          // [DUR 17/09] Ép thời lượng: composer NHỚ duration lần trước (sticky) → "Tạo ảnh động" kế thừa
-          // giá trị cũ (đã gặp: xin 4s ra 10s). Set tường minh = mở popover + click radio "N giây".
-          // Đã verify: thao tác này KHÔNG phá khung đầu. Chỉ đụng duration, GIỮ tỉ lệ/count menu đã set.
+          // [DUR+ASP 17/09] Ép tỉ lệ + thời lượng: composer NHỚ giá trị lần trước (sticky) → "Tạo ảnh
+          // động" kế thừa (đã gặp: xin 4s ra 10s). Mở popover 1 lần, set cả 2 radio rồi đóng. Video chỉ
+          // có 16:9/9:16 (crop từ ảnh nguồn). Đã verify KHÔNG phá khung đầu. GIỮ count menu đã set.
           const dsec = [4, 6, 8, 10].includes(Number(d.duration)) ? Number(d.duration) : null;
-          if (dsec) {
+          const aspRe = { '16:9': /^16:9$/, '9:16': /^9:16$/ }[d.aspect] || null;  // chỉ 2 tỉ lệ video hợp lệ
+          if (dsec || aspRe) {
             try {
               await openPopover();
-              const durRe = new RegExp('^' + dsec + '\\s*(giây|s|sec)');
-              const db = $$('[role="radio"]').filter(visible).filter((b) => durRe.test(norm(labelOf(b)))).pop();
-              if (db && db.getAttribute('aria-checked') !== 'true') { realClick(db); await sleep(500); }
-              an.durSet = db ? norm(labelOf(db)) : ('dur' + dsec + '=KHÔNG THẤY');
+              const clickRadio = async (re) => {
+                const b = $$('[role="radio"]').filter(visible).filter((x) => re.test(norm(labelOf(x)))).pop();
+                if (b && b.getAttribute('aria-checked') !== 'true') { realClick(b); await sleep(500); }
+                return b ? norm(labelOf(b)) : null;
+              };
+              if (aspRe) an.aspSet = (await clickRadio(aspRe)) || ('asp' + d.aspect + '=KHÔNG THẤY');
+              if (dsec) an.durSet = (await clickRadio(new RegExp('^' + dsec + '\\s*(giây|s|sec)'))) || ('dur' + dsec + '=KHÔNG THẤY');
               await closePopover();
-            } catch (e) { an.durErr = String((e && e.message) || e); try { await closePopover(); } catch (e2) {} }
+            } catch (e) { an.setErr = String((e && e.message) || e); try { await closePopover(); } catch (e2) {} }
             an.chip = chipText();
           }
           const elA = await waitFor(editorEl, 6000);
