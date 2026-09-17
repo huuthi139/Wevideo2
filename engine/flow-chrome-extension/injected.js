@@ -203,7 +203,7 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
 // poll=`jwpduf([[opId]])` (không mang URL), credits=`nzlxg` (RES [credits,…]).
 (() => {
   if (window.__flowAgentDriver) return;
-  const D = { listeners: new Set(), lastCredits: null };
+  const D = { listeners: new Set(), lastCredits: null, ver: 'charref-1' };  // [17/09] media_id ref + animate
   window.__flowAgentDriver = D;
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -378,9 +378,24 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
       return tag + '=' + lab(b) + (isChk(b) ? '✓' : '?');
     };
     const set = [];
-    set.push(await pick(kind === 'image' ? /^(hình ảnh|image)$/i : /^video$/i, 'mode'));
+    // [MODE FIX 17/09] Toggle Hình ảnh/Video KHÔNG phải role=radio → pick() qua radios() KHÔNG thấy
+    // → khi ô soạn đang ở Video, lệnh "ảnh" gõ+gửi vẫn ra VIDEO (đã gặp trên Mac mini). Tìm nút chế độ
+    // RỘNG (radio|button|tab) và LUÔN click nút đích (segmented control: click = chọn, không lật).
+    const modeRe = kind === 'image' ? /^(hình ảnh|image)$/i : /^video$/i;
+    const _pr = popoverRoot();  // GIỚI HẠN trong popover: tránh khớp nhầm mục "Video" ở sidebar
+    const _cands = (_pr ? $$('button,[role="button"],[role="tab"],[role="radio"],[role="option"],[role="menuitem"]', _pr) : [])
+      .filter(visible).map((b) => lab(b) || '·').filter(Boolean);
+    const modeBtn = radios().find((b) => modeRe.test(lab(b))) || (_pr ? findBtn(modeRe, _pr) : null);
+    if (modeBtn) {
+      if (!isChk(modeBtn)) { realClick(modeBtn); await sleep(700); }
+      set.push('mode=' + lab(modeBtn) + (isChk(modeBtn) ? '✓' : '~clk'));
+    } else {
+      set.push('modeNOTFOUND pr=' + (_pr ? 'y' : 'n') + '[' + _cands.slice(0, 14).join('|') + ']');
+    }
     if (!(await waitFor(isOpen, 2500))) await openPopover();   // đổi chế độ → popover re-render
-    set.push(await pick(aspect === '16:9' ? /^16:9$/ : /^9:16$/, 'asp'));
+    // [ASPECT 17/09] Ảnh có đủ 5 tỉ lệ; chọn ĐÚNG theo aspect thay vì chỉ 16:9/9:16.
+    const aspRe = { '16:9': /^16:9$/, '4:3': /^4:3$/, '1:1': /^1:1$/, '3:4': /^3:4$/, '9:16': /^9:16$/ }[aspect] || /^9:16$/;
+    set.push(await pick(aspRe, 'asp'));
     if (kind !== 'image') {
       const dsec = [4, 6, 8, 10].includes(Number(duration)) ? Number(duration) : 8;
       set.push(await pick(new RegExp('^' + dsec + '\\s*(giây|s|sec)'), 'dur'));
@@ -778,6 +793,140 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
 
       const putCaret = (el) => { try { const s = window.getSelection(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); s.removeAllRanges(); s.addRange(r); } catch (e) {} };
 
+      // [I2I 16/09] Đính ảnh vào composer (đường i2i của UI transport). Ưu tiên input[type=file]
+      // trong form composer (React đọc e.target.files khi dispatch change — ổn nhất); fallback
+      // synthetic paste. Xác nhận bằng thumbnail (blob:/data:) MỚI render trong form.
+      const attachImagesToComposer = async (imagesB64) => {
+        try {
+          const dt = new DataTransfer();
+          imagesB64.forEach((s, i) => {
+            const m = /^data:([^;]+);base64,(.*)$/.exec(String(s || ''));
+            const mime = m ? m[1] : 'image/png';
+            const raw = atob(m ? m[2] : String(s || ''));
+            const arr = new Uint8Array(raw.length);
+            for (let j = 0; j < raw.length; j++) arr[j] = raw.charCodeAt(j);
+            dt.items.add(new File([arr], 'ref-' + (i + 1) + '.' + (mime.split('/')[1] || 'png').replace('jpeg', 'jpg'), { type: mime }));
+          });
+          const scope = () => promptForm().form || document;
+          const thumbs = () => $$('img', scope()).filter((im) => /^(blob:|data:)/.test(String(im.src || ''))).length;
+          const before = thumbs();
+          let via = null;
+          let inp = $$('input[type="file"]', scope()).find((x) => !x.accept || /image/.test(x.accept))
+                 || $$('input[type="file"]').find((x) => !x.accept || /image/.test(x.accept));
+          if (inp) {
+            inp.files = dt.files;
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+            via = 'file-input';
+          }
+          let okThumb = via ? await waitFor(() => thumbs() > before, 8000) : false;
+          if (!okThumb) {
+            const el = editorEl();
+            if (!el && !via) return { ok: false, error: 'không thấy input file lẫn ô soạn' };
+            if (el) {
+              el.focus();
+              const ev = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+              try { Object.defineProperty(ev, 'clipboardData', { value: dt }); } catch (e) {}
+              el.dispatchEvent(ev);
+              via = (via ? via + '+' : '') + 'paste';
+              okThumb = await waitFor(() => thumbs() > before, 8000);
+            }
+          }
+          // okThumb=false vẫn cho chạy tiếp (preview có thể render kiểu khác) — báo cờ để engine log
+          return { ok: true, via, thumb: !!okThumb, n: dt.files.length };
+        } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+      };
+
+      // [INGREDIENT 17/09] Cố định nhân vật: Ô TÌM ĐẦU TRANG (index cả prompt → tìm được mã "NV01")
+      // → CHUỘT PHẢI asset → menu "Thêm vào câu lệnh". (Ô tìm trong picker "Thành phần" KHÔNG khớp mã.)
+      const rightClick = (el) => {
+        const r = el.getBoundingClientRect();
+        const o = { bubbles: true, cancelable: true, composed: true, view: window, button: 2, buttons: 2,
+                    clientX: Math.round(r.left + r.width / 2), clientY: Math.round(r.top + r.height / 2) };
+        try { el.dispatchEvent(new PointerEvent('pointerdown', Object.assign({ pointerId: 1, pointerType: 'mouse' }, o))); }
+        catch (e) { el.dispatchEvent(new MouseEvent('pointerdown', o)); }
+        el.dispatchEvent(new MouseEvent('mousedown', o));
+        el.dispatchEvent(new MouseEvent('mouseup', Object.assign({}, o, { buttons: 0 })));
+        el.dispatchEvent(new MouseEvent('contextmenu', o));
+      };
+      const addIngredientByName = async (name) => {
+        const raw = String(name || '').trim();
+        const q = norm(raw);
+        if (!q) return { ok: false, error: 'thiếu tên tham chiếu' };
+        try {
+          // 1) Gõ mã vào Ô TÌM ĐẦU TRANG (class search-input / aria-label "Tìm kiếm")
+          const top = $$('input').filter(visible).find((i) =>
+            /(^|\s)search-input(\s|$)/.test(i.className || '') || /^tìm kiếm$/i.test(i.getAttribute('aria-label') || ''));
+          if (!top) {
+            const inps = $$('input').filter(visible).map((i) => '"' + (i.getAttribute('aria-label') || i.placeholder || '') + '"');
+            return { ok: false, error: 'không thấy ô tìm đầu trang — inputs=[' + inps.join('|') + ']' };
+          }
+          top.focus();
+          const setV = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setV.call(top, raw);
+          top.dispatchEvent(new Event('input', { bubbles: true }));
+          await sleep(2600);   // chờ gallery lọc
+          // 2) Tile ảnh trong gallery: img đủ lớn, không nằm trong composer (dưới cùng)
+          const tiles = $$('img').filter(visible).filter((im) => {
+            const r = im.getBoundingClientRect();
+            return r.width >= 90 && r.height >= 90 && r.top > 90 && r.top < window.innerHeight * 0.8;
+          });
+          if (!tiles.length) return { ok: false, error: 'search "' + q + '" → 0 tile ảnh (mã có thể sai/asset chưa index)' };
+          const tile = tiles[0];   // search đã lọc → tile đầu là kết quả
+          // 3) Chuột phải → context menu
+          rightClick(tile); await sleep(1300);
+          // 4) Click "Thêm vào câu lệnh"
+          const addItem = await waitFor(() =>
+            $$('button,[role="menuitem"],[role="option"],li,a,div').filter(visible)
+              .find((b) => /^thêm vào câu lệnh$|add to prompt/i.test(norm(labelOf(b)))), 4000);
+          if (!addItem) {
+            const menu = [...new Set($$('[role="menuitem"],[role="menu"] *,[role="menu"]').filter(visible)
+              .map((b) => norm(labelOf(b)).slice(0, 16)).filter(Boolean))].slice(0, 10);
+            return { ok: false, error: 'menu KHÔNG có "Thêm vào câu lệnh" — có: [' + menu.join('|') + ']' };
+          }
+          realClick(addItem); await sleep(1400);
+          // 5) Xoá ô tìm để gallery trở lại (không bắt buộc)
+          try { setV.call(top, ''); top.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+          return { ok: true, matched: q };
+        } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+      };
+
+      // [CHAR-REF/ANIMATE 17/09] Tham chiếu asset theo data-media-id (đường CHẮC — registry code→id).
+      // Tile ảnh mang thuộc tính data-media-id (UUID Flow = media_id trả về lúc gen). Bỏ qua name-search
+      // (footer-title là caption tự sinh, KHÔNG chứa mã "NV01" → search theo tên trượt).
+      const tileByMediaId = (id) => {
+        const s = String(id || '').replace(/["\\\]]/g, '');
+        if (!s) return null;
+        const h = document.querySelector('[data-media-id="' + s + '"]');
+        return h ? (h.closest('flow-image-tile,flow-video-tile') || h) : null;
+      };
+      const menuLabels = () => [...new Set($$('[role="menuitem"]').filter(visible).map((b) => labelOf(b).slice(0, 20)).filter(Boolean))].slice(0, 12);
+      const menuItemClick = async (reEnd, ms) => {
+        const it = await waitFor(() => $$('[role="menuitem"]').filter(visible).find((b) => reEnd.test(labelOf(b))), ms || 4000);
+        if (!it) return false;
+        realClick(it); return true;
+      };
+      // Cố định nhân vật: right-click tile ảnh gốc → menu "Thêm vào câu lệnh" (gắn tham chiếu vào composer)
+      const addRefByMediaId = async (id) => {
+        const tile = await waitFor(() => tileByMediaId(id), 6000);
+        if (!tile) return { ok: false, error: 'không thấy tile data-media-id=' + id + ' (gallery chưa load/scroll?)' };
+        rightClick(tile.querySelector('img') || tile); await sleep(700);
+        if (!(await menuItemClick(/thêm vào câu lệnh$|add to prompt$/, 4000)))
+          return { ok: false, error: 'menu KHÔNG có "Thêm vào câu lệnh" — có:[' + menuLabels().join('|') + ']' };
+        await sleep(1200);
+        return { ok: true, id };
+      };
+      // Ảnh→video: right-click tile ảnh gốc → menu "Tạo ảnh động" (menu tự set video mode + khung đầu)
+      const animateImageByRef = async (id) => {
+        const tile = await waitFor(() => tileByMediaId(id), 6000);
+        if (!tile) return { ok: false, error: 'không thấy tile data-media-id=' + id };
+        rightClick(tile.querySelector('img') || tile); await sleep(700);
+        if (!(await menuItemClick(/tạo ảnh động$|animate$/, 4000)))
+          return { ok: false, error: 'menu KHÔNG có "Tạo ảnh động" — có:[' + menuLabels().join('|') + ']' };
+        await sleep(1500);
+        return { ok: true, id };
+      };
+
       // [FLOW UI mới — OMNI] PHA 1: CHỈ focus ô soạn. KHÔNG mở popover / KHÔNG đổi model —
       // vì mở popover hay đổi model làm composer RE-RENDER → xoá prompt vừa gõ. Dùng MẶC ĐỊNH
       // của account (model omni 1.1 flash + video 9:16 + x1 — đã xác nhận qua dump).
@@ -785,10 +934,49 @@ window.addEventListener('UPLOAD_VIDEO', async ({ detail }) => {
         await waitFor(() => promptForm().sub, 8000);
         // [WEVIDEO 16/09] tắt agent mode + áp cài đặt (chế độ/tỉ lệ/thời lượng) TRƯỚC khi focus & gõ prompt
         if (!(await ensureAgentOff())) throw mkErr('AGENT_MODE_ON', 'chip "tác nhân" đang bật, không tắt được — ' + barDiag());
+        // [ANIMATE 17/09] Ảnh→video: right-click ảnh nguồn → "Tạo ảnh động". Menu tự set video mode +
+        // khung đầu = ảnh; KHÔNG gọi applySettings2 (mở popover sẽ phá trạng thái khung đầu vừa set).
+        if (d.animateFrom) {
+          const an = await animateImageByRef(d.animateFrom);
+          if (!an.ok) throw mkErr('ANIMATE_FAIL', 'Tạo ảnh động (media_id=' + d.animateFrom + ') thất bại: ' + an.error);
+          const elA = await waitFor(editorEl, 6000);
+          if (!elA) throw mkErr('NO_EDITOR', 'không thấy ô prompt sau "Tạo ảnh động"');
+          elA.focus(); await sleep(150); await clearEditor(); elA.focus(); await sleep(120); putCaret(elA);
+          reply({ ready: true, projectId: pid, animate: an });
+          return;
+        }
         D.lastSettings = await applySettings2(d.kind, d.aspect, d.duration);
+        // [MODE DIAG 17/09] Ảnh nhưng chế độ chưa chuyển sang "Hình ảnh" → DỪNG + báo chẩn (thay vì
+        // âm thầm tạo VIDEO). set chứa nhãn nút popover khi không tìm thấy; chip = trạng thái hiện tại.
+        if (d.kind === 'image') {
+          const _s = String(D.lastSettings.set || ''), _chip = String(D.lastSettings.chip || '');
+          if (_s.includes('modeNOTFOUND') || /video|giây|720p|360p/i.test(_chip)) {
+            throw mkErr('IMG_MODE_FAIL', 'chưa vào chế độ Ảnh: set=[' + _s + '] chip=[' + _chip + ']');
+          }
+        }
         const el = editorEl(); if (!el) throw mkErr('NO_EDITOR', 'không thấy ô prompt');
-        el.focus(); await sleep(150); await clearEditor(); el.focus(); await sleep(150); putCaret(el);
-        reply({ ready: true, projectId: pid });
+        el.focus(); await sleep(150); await clearEditor();
+        // [INGREDIENT 17/09] Cố định nhân vật: ưu tiên media_id (CHẮC — registry code→id), fallback tên.
+        let ingr;
+        if (d.refId) {
+          ingr = await addRefByMediaId(d.refId);
+          if (!ingr.ok) throw mkErr('INGREDIENT_FAIL', 'chọn nhân vật media_id=' + d.refId + ' thất bại: ' + ingr.error);
+          await sleep(600);
+        } else if (d.refName) {
+          ingr = await addIngredientByName(d.refName);
+          if (!ingr.ok) throw mkErr('INGREDIENT_FAIL', 'chọn thành phần "' + d.refName + '" thất bại: ' + ingr.error);
+          await sleep(600);
+        }
+        // [I2I 16/09] đính ảnh SAU clearEditor (selectAll+delete có thể nuốt chip nếu chip
+        // nằm trong contenteditable), TRƯỚC khi focus gõ prompt.
+        let attach;
+        if (Array.isArray(d.imagesB64) && d.imagesB64.length) {
+          attach = await attachImagesToComposer(d.imagesB64);
+          if (!attach.ok) throw mkErr('ATTACH_FAILED', 'đính ảnh i2i thất bại: ' + attach.error);
+          await sleep(800);
+        }
+        el.focus(); await sleep(150); putCaret(el);
+        reply({ ready: true, projectId: pid, attach: attach || undefined });
         return;
       }
       // [FLOW UI mới] PHA 2: ô soạn đã có prompt (background gõ) → gửi + nghe kết quả.

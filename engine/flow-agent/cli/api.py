@@ -261,6 +261,7 @@ class ImageGenerationRequest(BaseModel):
     user: Optional[str] = None
     image_base64: Optional[str] = Field(None, description="Optional base64 reference image for image-to-image")
     ref_media_ids: Optional[List[str]] = Field(None, description="Optional reference image media IDs (up to 10)")
+    ref_name: Optional[str] = Field(None, description="Ten/ma asset goc de chon lam Thanh phan (giu nhan vat)")
 
 
 class VideoGenerationRequest(BaseModel):
@@ -324,8 +325,15 @@ async def openai_generate_image(req: ImageGenerationRequest):
 
     ref_media_ids = req.ref_media_ids or None
     temp_img_path = None
+    ui_i2i_b64 = None  # [I2I-UI] ảnh tham chiếu đính qua composer khi transport=ui
+    from omniflash.config import FLOW_TRANSPORT as _ft_i2i
 
-    if req.image_base64 and not ref_media_ids:
+    if req.image_base64 and not ref_media_ids and _ft_i2i == "ui":
+        _b64 = req.image_base64
+        if not _b64.startswith("data:"):
+            _b64 = "data:image/png;base64," + _b64
+        ui_i2i_b64 = [_b64]
+    elif req.image_base64 and not ref_media_ids:
         from omniflash.generators.i2v import upload_image
         b64_data = req.image_base64
         if "," in b64_data:
@@ -362,10 +370,9 @@ async def openai_generate_image(req: ImageGenerationRequest):
     # Khi transport=ui → sinh ảnh qua UI (generate_image_ui). UI chỉ T2I (chưa ref/I2I).
     from omniflash.config import FLOW_TRANSPORT
     ui_img_mode = (FLOW_TRANSPORT == "ui")
-    if ui_img_mode and ref_media_ids:
-        raise HTTPException(status_code=501, detail=(
-            "TRANSPORT_UI_NOT_SUPPORTED_YET: ref/I2I ảnh qua UI chưa hỗ trợ (chỉ T2I). "
-            "Đặt FLOW_TRANSPORT=api để dùng đường cũ."))
+    # [CHAR-REF 17/09] ref_media_ids qua UI = cố định nhân vật theo data-media-id: driver right-click
+    # tile ảnh gốc → "Thêm vào câu lệnh". Dùng id ĐẦU làm tham chiếu nhân vật (registry code→media_id).
+    ui_ref_id = (ref_media_ids[0] if (ui_img_mode and ref_media_ids) else None)
 
     try:
         results = []
@@ -376,7 +383,8 @@ async def openai_generate_image(req: ImageGenerationRequest):
                 try:
                     res = await generate_image_ui(
                         active_bridge, prompt=req.prompt, aspect=aspect,
-                        project_id=project_id, count=chunk_size)
+                        project_id=project_id, count=chunk_size,
+                        images_b64=ui_i2i_b64, ref_name=req.ref_name, ref_id=ui_ref_id)
                     if isinstance(res, list):
                         results.extend(res)
                 except Exception as e:
@@ -596,9 +604,11 @@ async def openai_generate_video(req: VideoGenerationRequest):
 
     # [FLOW V2 11/09] UI transport: vòng này chỉ T2V (không ảnh/ref/end/video đầu vào).
     ui_mode = FLOW_TRANSPORT == "ui"
-    if ui_mode and (image_media_id or end_media_id or req.ref_media_ids or is_video_input):
+    # [ANIMATE 17/09] UI: start_media_id (ảnh nguồn CÓ SẴN trong Flow) → "Tạo ảnh động" (ảnh→video).
+    # Các combo còn lại (ref_media_ids/end/video đầu vào) chưa hỗ trợ ở UI.
+    if ui_mode and (end_media_id or req.ref_media_ids or is_video_input):
         raise HTTPException(status_code=501, detail=(
-            "TRANSPORT_UI_NOT_SUPPORTED_YET: I2V/R2V/FL/V2V qua UI chưa hỗ trợ (chỉ T2V). "
+            "TRANSPORT_UI_NOT_SUPPORTED_YET: R2V/FL/V2V qua UI chưa hỗ trợ. "
             "Đặt FLOW_TRANSPORT=api để dùng đường cũ."))
     if ui_mode and req.dry_run:
         from omniflash.generators.ui import dry_run_ui
@@ -612,7 +622,8 @@ async def openai_generate_video(req: VideoGenerationRequest):
         # Submit generation
         if ui_mode:
             from omniflash.generators.ui import generate_video_ui
-            media_ids = await generate_video_ui(active_bridge, req.prompt, aspect_key, project_id, duration=req.duration, count=req.n)
+            # image_media_id=None → T2V; =start_media_id → ảnh→video ("Tạo ảnh động")
+            media_ids = await generate_video_ui(active_bridge, req.prompt, aspect_key, project_id, duration=req.duration, count=req.n, animate_from=image_media_id)
         elif is_video_input and image_media_id:
             from omniflash.generators.v2v import edit_video
             media_ids = await edit_video(active_bridge, req.prompt, aspect_key, project_id, image_media_id, duration=req.duration, ref_media_ids=req.ref_media_ids)
