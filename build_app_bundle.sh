@@ -14,7 +14,9 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>WeVideo</string>
   <key>CFBundleDisplayName</key><string>WeVideo</string>
   <key>CFBundleIdentifier</key><string>com.wevideo.app</string>
-  <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundleVersion</key><string>1.1</string>
+  <key>CFBundleShortVersionString</key><string>1.1</string>
+  <key>CFBundleIconFile</key><string>WeVideo</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleExecutable</key><string>WeVideo</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
@@ -27,5 +29,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:\$PATH"
 cd "$APPDIR"
 exec ./.venv/bin/python desktop.py
 LAUNCH
+# icon (nếu có assets/WeVideo.icns)
+[ -f "$APPDIR/assets/WeVideo.icns" ] && cp "$APPDIR/assets/WeVideo.icns" "$OUT/Contents/Resources/WeVideo.icns"
 chmod +x "$OUT/Contents/MacOS/WeVideo"
 echo "✅ Tạo $OUT — kéo vào Dock hoặc double-click để mở WeVideo dạng app."

@@ -48,7 +48,7 @@ _UPDATE_ITEMS = ["server.py", "mcp_server.py", "pipeline", "web", "scripts",
                  "README.md", "setup.sh", "run.sh", "build_installer.sh",
                  "hermes-mcp-config.json", ".gitignore",
                  "auto_update.sh", "install_autoupdate.sh",
-                 "com.wevideo.autoupdate.plist.template", "build_ext_installer.sh", "cai-extension.command", "desktop.py", "WeVideo.command", "build_app_bundle.sh"]
+                 "com.wevideo.autoupdate.plist.template", "build_ext_installer.sh", "cai-extension.command", "desktop.py", "WeVideo.command", "build_app_bundle.sh", "make_icon.py", "assets"]
 
 
 def _current_version():
