@@ -57,12 +57,26 @@ def _ensure_backend():
     return False
 
 
+def _set_app_name(name):
+    """Đổi tên app trên thanh menu macOS (mặc định lấy CFBundleName của Python.app → 'Python').
+    Vá CFBundleName của mainBundle TRƯỚC khi pywebview dựng menu → menu hiện đúng tên."""
+    try:
+        from Foundation import NSBundle
+        b = NSBundle.mainBundle()
+        for info in (b.localizedInfoDictionary(), b.infoDictionary()):
+            if info is not None:
+                info["CFBundleName"] = name
+    except Exception:
+        pass
+
+
 def main():
     try:
         import webview
     except ImportError:
         sys.stderr.write("Thiếu pywebview. Cài: .venv/bin/pip install pywebview\n")
         sys.exit(1)
+    _set_app_name("WeVideo")   # tên hiện trên thanh menu macOS (mặc định là "Python")
     _ensure_backend()   # dù backend chưa lên vẫn mở cửa sổ — trang tự báo trạng thái + thử lại
     webview.create_window("WeVideo", URL, width=1240, height=880, min_size=(900, 640))
     webview.start()
