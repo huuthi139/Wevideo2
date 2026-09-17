@@ -44,6 +44,8 @@ echo "==> 3/3  Web app — venv…"
 ./.venv/bin/pip install -q "fastapi>=0.110" "uvicorn>=0.29" pillow edge-tts "mcp>=2,<3"
 # Auto-Shorts (cắt video dài → clip ngắn): transcribe + face-detect + upload (khá nặng ~250MB)
 ./.venv/bin/pip install -q python-multipart faster-whisper opencv-python-headless
+# Cửa sổ app native trên macOS (desktop.py) — pywebview + pyobjc
+./.venv/bin/pip install -q pywebview 2>/dev/null || echo "   ⚠ pywebview cài lỗi (cửa sổ native bỏ qua; vẫn dùng được qua http://127.0.0.1:PORT)"
 echo "   ok: $(./.venv/bin/python -c 'import fastapi,PIL; from mcp.server import MCPServer; print("fastapi",fastapi.__version__,"| pillow",PIL.__version__,"| mcp ok")')"
 
 echo

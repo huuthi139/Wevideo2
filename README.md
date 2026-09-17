@@ -46,6 +46,15 @@ cd ~/WeVideo-App && bash setup.sh && bash run.sh
 
 Hoặc dùng bản cài 1 file: `bash build_installer.sh` (máy build) → `dist/WeVideo-Installer.command` → copy sang iMac, double-click.
 
+## Cửa sổ app trên máy (không cần mở tab trình duyệt)
+
+WeVideo có thể mở như **một app cửa sổ riêng** trên macOS (WKWebView), có icon Dock:
+
+- Double-click **`WeVideo.command`** (trong thư mục app), hoặc
+- Tạo app bundle kéo vào Dock: `bash build_app_bundle.sh` → `~/Desktop/WeVideo.app`.
+
+Phần lõi (engine + web app) vẫn chạy nền; đóng cửa sổ vẫn chạy tiếp. Gen clip Veo vẫn cần extension Chrome + 1 tab flow.google.com đã đăng nhập (ràng buộc của Google Flow).
+
 ## Chạy
 
 ```bash
