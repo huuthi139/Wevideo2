@@ -138,6 +138,31 @@ async def _media_urls():
     return {"n_video": len(vids), "video_ids": list(vids.keys()), "video_urls": list(vids.values())}
 
 
+def _rpc_out(r):
+    if isinstance(r, dict) and r.get("error"):
+        raise HTTPException(status_code=503, detail=f"{r.get('code','RPC')}: {r.get('error')}")
+    return (r.get("result") if isinstance(r, dict) else None) or {}
+
+
+@app.post("/v2/pin")
+async def _v2_pin():
+    """[PIN 17/09] Ghim tab Flow đang dùng → mọi lần gen chạy đúng tab đó."""
+    b = await get_active_bridge()
+    return _rpc_out(await b.rpc("pin_flow_tab"))
+
+
+@app.post("/v2/unpin")
+async def _v2_unpin():
+    b = await get_active_bridge()
+    return _rpc_out(await b.rpc("unpin_flow_tab"))
+
+
+@app.get("/v2/pin")
+async def _v2_pin_status():
+    b = await get_active_bridge()
+    return _rpc_out(await b.rpc("get_pinned_tab", timeout=6))
+
+
 @app.get("/v2/pick")
 async def _v2_pick():
     """[WEVIDEO 16/09 chẩn] Soi từng socket extension: cái nào có tab project + injected bản nào (0 credit)."""

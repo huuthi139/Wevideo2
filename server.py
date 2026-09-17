@@ -14,6 +14,7 @@ import tempfile
 import threading
 import time
 import urllib.request
+import urllib.error
 import uuid
 
 from fastapi import FastAPI, Request, UploadFile, File, Form
@@ -198,6 +199,42 @@ def api_video(job_id: str):
         return JSONResponse({"error": "chưa có video"}, status_code=404)
     return FileResponse(j["video"], media_type="video/mp4",
                         filename=os.path.basename(j["video"]))
+
+
+def _flow_json(path, method="GET", timeout=35):
+    url = FLOW_URL.rstrip("/") + path
+    data = b"{}" if method == "POST" else None
+    req = urllib.request.Request(url, data=data, method=method,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
+
+
+@app.post("/api/pin_tab")
+def api_pin_tab():
+    """[PIN 17/09] Ghim tab Flow đang mở → mọi lần tạo video chạy đúng tab đó."""
+    try:
+        return _flow_json("/v2/pin", "POST")
+    except urllib.error.HTTPError as e:
+        return JSONResponse({"error": e.read().decode()[:200]}, status_code=e.code)
+    except Exception as e:
+        return JSONResponse({"error": str(e)[:200]}, status_code=502)
+
+
+@app.post("/api/unpin_tab")
+def api_unpin_tab():
+    try:
+        return _flow_json("/v2/unpin", "POST")
+    except Exception as e:
+        return JSONResponse({"error": str(e)[:200]}, status_code=502)
+
+
+@app.get("/api/pin_status")
+def api_pin_status():
+    try:
+        return _flow_json("/v2/pin", "GET")
+    except Exception as e:
+        return JSONResponse({"pinned": False, "error": str(e)[:150]}, status_code=200)
 
 
 @app.get("/api/version")

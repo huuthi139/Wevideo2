@@ -32,6 +32,8 @@ Cần sẵn trên máy: **python3**, **ffmpeg** (`brew install ffmpeg`). Giọng
 
 Kiểm: `curl -s http://127.0.0.1:8001/health` có `"extension_connected":true`. Trên UI, chấm xanh = sẵn sàng.
 
+**Cài / nạp lại extension nhanh:** double-click `cai-extension.command` (mở sẵn chrome://extensions + Finder + copy path + chỉ dẫn từng bước; Chrome cấm tự nạp nên còn 1 thao tác kéo-thả/Load unpacked).
+
 **Cài extension RIÊNG (máy chưa nạp được):** `bash build_ext_installer.sh` → `dist/WeVideo-Extension-Installer.command`. Copy file này sang máy đích, double-click: nó tự giải nén extension + mở `chrome://extensions` + hiện Finder + copy path vào clipboard. Còn đúng 1 việc tay (Chrome bắt buộc): bật *Developer mode* rồi **kéo-thả** thư mục `flow-chrome-extension` vào trang. Máy đã có app thì file tự trỏ vào extension của app (khỏi tạo bản trùng).
 
 ## Nhân bản sang iMac mới

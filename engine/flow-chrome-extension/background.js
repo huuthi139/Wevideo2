@@ -226,6 +226,20 @@ function connectToAgent() {
             metrics,
           },
         });
+      } else if (msg.method === 'pin_flow_tab') {
+        // Ghim tab Flow đang dùng (ưu tiên tab active là flow; nếu không có thì tab project tìm được)
+        let tab = null;
+        try { tab = (await chrome.tabs.query({ active: true })).find((t) => /^https:\/\/flow\.google\.com\//.test(t.url || '')); } catch {}
+        if (!tab) tab = await findFlowV2ProjectTab();
+        if (tab && tab.id != null) { await setPinnedTabId(tab.id); sendToAgent({ id: msg.id, result: { pinned: true, tabId: tab.id, url: tab.url || null } }); }
+        else sendToAgent({ id: msg.id, error: 'NO_FLOW_TAB: không thấy tab flow.google.com để ghim (mở 1 tab flow.google.com rồi thử lại)', code: 'NO_FLOW_PROJECT_TAB' });
+      } else if (msg.method === 'unpin_flow_tab') {
+        await clearPinnedTabId();
+        sendToAgent({ id: msg.id, result: { pinned: false } });
+      } else if (msg.method === 'get_pinned_tab') {
+        const pid = await getPinnedTabId(); let url = null, valid = false;
+        if (pid != null) { try { const t = await chrome.tabs.get(pid); url = t.url || null; valid = /^https:\/\/flow\.google\.com\//.test(url || ''); } catch { valid = false; } }
+        sendToAgent({ id: msg.id, result: { pinned: pid != null, tabId: pid, url, valid } });
       } else if (msg.method === 'open_flow_tab') {
         // Python bridge asks us to open/focus a Flow tab
         console.log('[Flow Agent] Agent requested: open Flow tab');
@@ -512,6 +526,24 @@ chrome.tabs.onUpdated.addListener((_id, _info, tab) => {
 async function getLastProjectId() {
   try { const d = await chrome.storage.local.get('lastProjectId'); return d.lastProjectId || null; } catch { return null; }
 }
+// [PIN 17/09] Ghim 1 tab Flow: mọi lần gen chạy ĐÚNG tab này (không mở tab mới, không nhảy tab khác).
+async function getPinnedTabId() { try { const d = await chrome.storage.local.get('pinnedTabId'); return (d.pinnedTabId != null) ? d.pinnedTabId : null; } catch { return null; } }
+async function setPinnedTabId(id) { try { await chrome.storage.local.set({ pinnedTabId: id }); } catch {} }
+async function clearPinnedTabId() { try { await chrome.storage.local.remove('pinnedTabId'); } catch {} }
+async function resolvePinnedTab() {
+  const pid = await getPinnedTabId();
+  if (pid == null) return null;
+  let t = null;
+  try { t = await chrome.tabs.get(pid); } catch { t = null; }
+  if (!t || !/^https:\/\/flow\.google\.com\//.test(t.url || '')) { await clearPinnedTabId(); return null; }  // tab đóng/đổi site → bỏ ghim
+  if (t.discarded) { try { await chrome.tabs.reload(t.id); await waitTabComplete(t.id, 15000); } catch {} t = await chrome.tabs.get(t.id).catch(() => t); }
+  // tab ghim đang ở /edit/ hoặc home → ĐƯA VỀ gallery project TRONG CHÍNH tab đó (không tạo tab mới)
+  if (t && (!/\/project\/[0-9a-f-]{36}/i.test(t.url || '') || /\/edit\//.test(t.url || ''))) {
+    const pid2 = (String(t.url || '').match(/\/project\/([0-9a-f-]{36})/i) || [])[1] || await getLastProjectId();
+    if (pid2) { try { await chrome.tabs.update(t.id, { url: `https://flow.google.com/project/${pid2}` }); await waitTabComplete(t.id, 20000); t = await chrome.tabs.get(t.id).catch(() => t); } catch {} }
+  }
+  return t || null;
+}
 async function waitTabComplete(tabId, timeoutMs = 20000) {
   const t0 = Date.now();
   while (Date.now() - t0 < timeoutMs) {
@@ -522,6 +554,9 @@ async function waitTabComplete(tabId, timeoutMs = 20000) {
 }
 
 async function findFlowV2ProjectTab() {
+  // 0) [PIN 17/09] Tab đã GHIM thắng tất cả — luôn dùng đúng tab đó.
+  const pinned = await resolvePinnedTab();
+  if (pinned) return pinned;
   // 1) Tab /project/ đang mở (mọi cửa sổ). Discarded → reload để dùng lại.
   const tabs = await chrome.tabs.query({ url: FLOW_V2_PROJECT_URLS });
   const ok = tabs.filter((t) => t.url && !/\/edit\//.test(t.url));

@@ -37,6 +37,11 @@
   <h1>🎬 WeVideo — Kịch bản → Video</h1>
   <div class="sub">Dán kịch bản tiếng Việt → tự tạo video người que 9:16 (giọng + phụ đề + gen Veo qua Google Flow).</div>
   <div class="status"><span class="dot" id="dot"></span><span id="stt">Đang kiểm tra kết nối…</span></div>
+  <div class="status" style="margin-top:6px;gap:8px;flex-wrap:wrap">
+    <span id="pinStt" style="font-size:13px;color:var(--muted,#888)">Tab Flow: chưa ghim</span>
+    <button id="pinBtn" type="button" style="font-size:12px;padding:3px 10px;border-radius:6px;cursor:pointer">📌 Ghim tab hiện tại</button>
+    <button id="unpinBtn" type="button" style="font-size:12px;padding:3px 10px;border-radius:6px;cursor:pointer;display:none">Bỏ ghim</button>
+  </div>
 
   <div class="card">
     <label>Kịch bản (mỗi dòng = 1 câu đọc; hoặc khối <code>doc:/hinh:/phude:</code> · thêm <code>broll:</code> để chèn cutaway)</label>
@@ -199,6 +204,24 @@ $('#cgo').onclick = async () => {
     }
   },1500);
 };
+
+async function refreshPin(){
+  try{ const p=await (await fetch('/api/pin_status')).json();
+    const el=$('#pinStt'), ub=$('#unpinBtn');
+    if(p && p.pinned && p.valid){ el.textContent='📌 Đã ghim tab Flow — video sẽ tạo trên tab này'; el.style.color='#2e7d32'; ub.style.display=''; }
+    else if(p && p.pinned && !p.valid){ el.textContent='⚠ Tab đã ghim bị đóng — bấm Ghim lại'; el.style.color='#b26a00'; ub.style.display=''; }
+    else { el.textContent='Tab Flow: chưa ghim (dùng tab bất kỳ đang mở)'; el.style.color='var(--muted,#888)'; ub.style.display='none'; }
+  }catch(e){}
+}
+$('#pinBtn').onclick=async()=>{
+  $('#pinBtn').disabled=true; $('#pinStt').textContent='Đang ghim…';
+  try{ const r=await (await fetch('/api/pin_tab',{method:'POST'})).json();
+    if(r.error){ $('#pinStt').textContent='Ghim lỗi: '+r.error; $('#pinStt').style.color='#c62828'; }
+  }catch(e){ $('#pinStt').textContent='Ghim lỗi (mở 1 tab flow.google.com rồi thử lại)'; }
+  $('#pinBtn').disabled=false; refreshPin();
+};
+$('#unpinBtn').onclick=async()=>{ try{ await fetch('/api/unpin_tab',{method:'POST'}); }catch(e){} refreshPin(); };
+refreshPin(); setInterval(refreshPin, 8000);
 
 checkHealth(); loadCfg(); loadVersion(); setInterval(checkHealth, 8000);
 </script>

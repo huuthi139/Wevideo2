@@ -475,6 +475,22 @@ class ExtensionBridge:
                 self.last_credits_at = time.time()
         return result
 
+    async def rpc(self, method: str, params: dict = None, timeout=30):
+        """[PIN 17/09] Gọi 1 method WS bất kỳ trên extension ĐANG lái (self._ws). Trả dict {result}|{error}."""
+        if not self._ws:
+            return {"error": "Extension not connected", "code": "EXT_DISCONNECTED"}
+        req_id = str(uuid.uuid4())
+        future = self._loop.create_future()
+        self._pending[req_id] = future
+        await self.send_message({"id": req_id, "method": method, "params": params or {}}, ws=self._ws)
+        try:
+            result = await asyncio.wait_for(future, timeout=timeout)
+        except asyncio.TimeoutError:
+            return {"error": "TIMEOUT", "code": "TIMEOUT"}
+        finally:
+            self._pending.pop(req_id, None)
+        return result
+
     async def probe_all_sockets(self, prompt="__VERSION__", timeout=30):
         """[WEVIDEO 16/09 chẩn] Gửi 1 probe tới TỪNG socket, trả list kết quả để soi socket nào có tab + injected bản nào."""
         import asyncio as _a
