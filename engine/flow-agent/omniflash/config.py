@@ -56,7 +56,7 @@ if DEFAULT_IMAGE_MODEL not in IMAGE_MODELS.values():
 
 # ─── Hardcoded constants (never change) ──────────────────────
 
-API_KEY = os.environ.get("API_KEY", "AIzaSyBtrm0o5ab1c-Ec8ZuLcGt3oJAA5VWt3pY")
+API_KEY = os.environ.get("API_KEY", "")   # [17/09] gỡ key cũ hardcode — chỉ dùng đường aisandbox đã CHẾT (v2 dùng cookie). Nạp qua env nếu cần.
 API_BASE = os.environ.get("API_BASE", "https://aisandbox-pa.googleapis.com")
 
 # [FLOW V2 11/09] transport: "ui" = lái UI flow.google.com qua extension (mặc định — API
