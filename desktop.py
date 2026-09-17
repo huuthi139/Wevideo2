@@ -70,6 +70,39 @@ def _set_app_name(name):
         pass
 
 
+def _bring_front():
+    """Kéo cửa sổ WeVideo ra TRƯỚC + CĂN GIỮA màn hình đang dùng, ngay cả khi mở ở Space khác.
+    Chạy trên LUỒNG CHÍNH qua AppHelper.callAfter (thao tác UI Cocoa bắt buộc ở main thread)."""
+    try:
+        import time as _t
+        from PyObjCTools import AppHelper
+        _t.sleep(0.35)
+
+        def _do():
+            try:
+                from AppKit import NSApplication, NSWindowCollectionBehaviorMoveToActiveSpace
+                app = NSApplication.sharedApplication()
+                app.activateIgnoringOtherApps_(True)
+                for w in app.windows():
+                    try:
+                        # theo Space đang hoạt động (không kẹt ở màn hình ảo khác) + căn giữa + nổi lên
+                        w.setCollectionBehavior_(NSWindowCollectionBehaviorMoveToActiveSpace)
+                        w.center()
+                        w.makeKeyAndOrderFront_(None)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        for _ in range(30):     # chờ cửa sổ tồn tại rồi mới canh
+            AppHelper.callAfter(_do)
+            _t.sleep(0.2)
+            break
+        AppHelper.callAfter(_do)
+    except Exception:
+        pass
+
+
 def main():
     try:
         import webview
@@ -79,7 +112,7 @@ def main():
     _set_app_name("WeVideo")   # tên hiện trên thanh menu macOS (mặc định là "Python")
     _ensure_backend()   # dù backend chưa lên vẫn mở cửa sổ — trang tự báo trạng thái + thử lại
     webview.create_window("WeVideo", URL, width=1240, height=880, min_size=(900, 640))
-    webview.start()
+    webview.start(_bring_front)   # func chạy sau khi GUI lên → kéo cửa sổ ra trước + giữa màn hình
 
 
 if __name__ == "__main__":
