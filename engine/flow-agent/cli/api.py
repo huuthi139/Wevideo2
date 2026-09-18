@@ -262,6 +262,8 @@ class ImageGenerationRequest(BaseModel):
     image_base64: Optional[str] = Field(None, description="Optional base64 reference image for image-to-image")
     ref_media_ids: Optional[List[str]] = Field(None, description="Optional reference image media IDs (up to 10)")
     ref_name: Optional[str] = Field(None, description="Ten/ma asset goc de chon lam Thanh phan (giu nhan vat)")
+    code: Optional[str] = Field(None, description="Mã lưu vào kho dùng chung (đặt tên file <mã>_<tên>)")
+    name: Optional[str] = Field(None, description="Tên file lưu vào kho dùng chung")
 
 
 class VideoGenerationRequest(BaseModel):
@@ -278,6 +280,8 @@ class VideoGenerationRequest(BaseModel):
     end_media_id: Optional[str] = Field(None, description="Optional pre-uploaded END image media ID for FL")
     # [FLOW V2 11/09] dry_run: chỉ kiểm driver UI (chọn cài đặt + chèn prompt rồi xoá), KHÔNG gửi, 0 credit
     dry_run: Optional[bool] = Field(False, description="UI transport only: verify driver without submitting")
+    code: Optional[str] = Field(None, description="Mã lưu vào kho dùng chung (đặt tên file <mã>_<tên>)")
+    name: Optional[str] = Field(None, description="Tên file lưu vào kho dùng chung")
 
 
 # Extension WebSocket and Callback Endpoints
@@ -475,15 +479,23 @@ async def openai_generate_image(req: ImageGenerationRequest):
             await append_to_history("image", url, req.prompt, r.get("media_id"), None)
             continue
 
+        # [MEDIA LIBRARY] copy sang kho dùng chung (<mã>_<tên>) nếu MEDIA_LIBRARY_DIR được set
+        from omniflash.media_library import save_to_library
+        _lib = save_to_library(out_path, req.code, req.name, i + 1, req.n, {
+            "kind": "image", "media_id": r.get("media_id"), "prompt": req.prompt,
+            "size": req.size, "ref_media_id": (ref_media_ids[0] if ref_media_ids else None),
+        })
+
         if req.response_format == "b64_json":
             with open(out_path, "rb") as image_file:
                 b64_data = base64.b64encode(image_file.read()).decode("utf-8")
-                data_outputs.append({"b64_json": b64_data})
+                data_outputs.append({"b64_json": b64_data, "library_path": _lib})
         else:
             served_url, r2_key = await publish(filename, out_path)
             data_outputs.append({
                 "url": served_url,
-                "media_id": r.get("media_id")
+                "media_id": r.get("media_id"),
+                "library_path": _lib
             })
             await append_to_history("image", served_url, req.prompt, r.get("media_id"), r2_key)
 
@@ -682,15 +694,23 @@ async def openai_generate_video(req: VideoGenerationRequest):
             log.error(f"Download failed for media_id: {media_id}")
             return None
 
+        # [MEDIA LIBRARY] copy video sang kho dùng chung (<mã>_<tên>) nếu MEDIA_LIBRARY_DIR được set
+        from omniflash.media_library import save_to_library
+        _lib = save_to_library(out_path, req.code, req.name, index + 1, len(media_ids), {
+            "kind": "video", "media_id": media_id, "prompt": req.prompt,
+            "aspect": req.aspect, "duration": req.duration,
+            "start_media_id": req.start_media_id,
+        })
+
         served_url, r2_key = await publish(filename, out_path)
-        return {"url": served_url, "media_id": media_id, "r2_key": r2_key}
+        return {"url": served_url, "media_id": media_id, "r2_key": r2_key, "library_path": _lib}
 
     tasks = [poll_and_download(mid, i) for i, mid in enumerate(media_ids)]
     results = await asyncio.gather(*tasks)
 
     for r in results:
         if r:
-            data_outputs.append({"url": r["url"], "media_id": r.get("media_id")})
+            data_outputs.append({"url": r["url"], "media_id": r.get("media_id"), "library_path": r.get("library_path")})
             await append_to_history("video", r["url"], req.prompt, r.get("media_id"), r.get("r2_key"))
 
     if not data_outputs:
